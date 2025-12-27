@@ -10,16 +10,18 @@ import { SocialLinksModal } from '@/components/profile/SocialLinksModal';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Settings, Crown, FileText, Bookmark, History, Star, Send, Globe } from 'lucide-react';
+import { Settings, Crown, FileText, Bookmark, History, Star, Send, Globe, HelpCircle, MessageCircle } from 'lucide-react';
 import { useProfile } from '@/hooks/use-profile';
 import { useArticles, Article } from '@/hooks/use-articles';
 import { useReputation } from '@/hooks/use-reputation';
+import { useTelegram } from '@/hooks/use-telegram';
 import { toast } from 'sonner';
 
 export default function Profile() {
   const { profile, loading: profileLoading, articlesCount, updateSocialLinks } = useProfile();
   const { getUserArticles } = useArticles();
   const { getMyReputation } = useReputation();
+  const { openTelegramLink, getBotUsername } = useTelegram();
   const [activeTab, setActiveTab] = useState('articles');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isPremiumOpen, setIsPremiumOpen] = useState(false);
@@ -29,6 +31,15 @@ export default function Profile() {
   const [userArticles, setUserArticles] = useState<Article[]>([]);
   const [articlesLoading, setArticlesLoading] = useState(true);
   const [reputation, setReputation] = useState(0);
+
+  const handleSupportClick = () => {
+    const botUsername = getBotUsername();
+    if (botUsername) {
+      openTelegramLink(`https://t.me/${botUsername}?start=support`);
+    } else {
+      toast.error('Не удалось открыть чат поддержки');
+    }
+  };
 
   // Load user's articles
   useEffect(() => {
@@ -323,6 +334,27 @@ export default function Profile() {
               </div>
             </TabsContent>
           </Tabs>
+
+          {/* Support Section */}
+          <div className="mt-6 rounded-2xl bg-card p-4">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
+                <HelpCircle className="h-5 w-5 text-primary" />
+              </div>
+              <div className="flex-1">
+                <h3 className="font-heading text-base font-semibold">Техническая поддержка</h3>
+                <p className="text-xs text-muted-foreground">Есть вопрос? Мы поможем!</p>
+              </div>
+            </div>
+            <Button 
+              onClick={handleSupportClick} 
+              className="w-full gap-2"
+              variant="outline"
+            >
+              <MessageCircle className="h-4 w-4" />
+              Задать вопрос
+            </Button>
+          </div>
         </section>
       </main>
 

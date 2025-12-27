@@ -95,10 +95,11 @@ async function handleStart(chatId: number, userId: number) {
 
 📊 /stats — Статистика проекта
 📝 /pending — Статьи на модерации
+❓ /questions — Вопросы в поддержку
 📢 /broadcast — Рассылка всем пользователям
 ❓ /help — Справка
 
-<i>Уведомления о новых статьях приходят автоматически.</i>`;
+<i>Уведомления о новых статьях и вопросах приходят автоматически.</i>`;
 
   await sendAdminMessage(chatId, welcomeMessage);
 }
@@ -247,6 +248,105 @@ async function handleBroadcast(chatId: number, userId: number, text?: string) {
 
 📤 Отправлено: ${sent}
 ❌ Не доставлено: ${failed}`);
+}
+
+// Handle /questions command - show pending support questions
+async function handleQuestions(chatId: number, userId: number) {
+  if (!isAdmin(userId)) return;
+
+  const { data: questions, error } = await supabase
+    .from('support_questions')
+    .select('id, user_telegram_id, question, created_at, user_profile_id')
+    .eq('status', 'pending')
+    .order('created_at', { ascending: false })
+    .limit(20);
+
+  if (error) {
+    console.error('Error fetching questions:', error);
+    await sendAdminMessage(chatId, '❌ Ошибка при загрузке вопросов');
+    return;
+  }
+
+  if (!questions || questions.length === 0) {
+    await sendAdminMessage(chatId, '✨ Нет вопросов в поддержку');
+    return;
+  }
+
+  await sendAdminMessage(chatId, `❓ <b>Вопросы в поддержку (${questions.length}):</b>\n\n<i>Чтобы ответить на вопрос, используйте функцию "Ответить" (свайп влево) на сообщение с вопросом.</i>`);
+
+  for (const q of questions) {
+    // Get user info
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('first_name, username')
+      .eq('telegram_id', q.user_telegram_id)
+      .maybeSingle();
+
+    const message = `❓ <b>Вопрос #${q.id.substring(0, 8)}</b>
+
+👤 <b>От:</b> ${profile?.first_name || 'User'} ${profile?.username ? `(@${profile.username})` : ''}
+🆔 <b>Telegram ID:</b> ${q.user_telegram_id}
+
+📝 <b>Вопрос:</b>
+${q.question}
+
+🕐 ${new Date(q.created_at).toLocaleString('ru-RU')}`;
+
+    const result = await sendAdminMessage(chatId, message);
+    
+    // Update admin_message_id for reply tracking
+    if (result.ok && result.result?.message_id) {
+      await supabase
+        .from('support_questions')
+        .update({ admin_message_id: result.result.message_id })
+        .eq('id', q.id);
+    }
+  }
+}
+
+// Handle reply to support question
+async function handleSupportReply(chatId: number, userId: number, text: string, replyToMessageId: number): Promise<boolean> {
+  if (!isAdmin(userId)) return false;
+
+  // Find the question by admin_message_id
+  const { data: question, error } = await supabase
+    .from('support_questions')
+    .select('id, user_telegram_id, question')
+    .eq('admin_message_id', replyToMessageId)
+    .eq('status', 'pending')
+    .maybeSingle();
+
+  if (error || !question) {
+    return false;
+  }
+
+  // Update question with answer
+  await supabase
+    .from('support_questions')
+    .update({
+      answer: text,
+      answered_by_telegram_id: userId,
+      status: 'answered',
+      answered_at: new Date().toISOString(),
+    })
+    .eq('id', question.id);
+
+  // Send answer to user via User Bot
+  await sendUserMessage(
+    question.user_telegram_id,
+    `💬 <b>Ответ от поддержки BoysHub</b>
+
+<b>Ваш вопрос:</b>
+${question.question}
+
+<b>Ответ:</b>
+${text}
+
+<i>Если у вас есть ещё вопросы, напишите /start и выберите поддержку.</i>`
+  );
+
+  await sendAdminMessage(chatId, `✅ Ответ отправлен пользователю`);
+  return true;
 }
 
 // Get or create short ID for article
@@ -513,11 +613,22 @@ Deno.serve(async (req) => {
         await handleStats(chat.id, from.id);
       } else if (text === '/pending') {
         await handlePending(chat.id, from.id);
+      } else if (text === '/questions') {
+        await handleQuestions(chat.id, from.id);
       } else if (text?.startsWith('/broadcast')) {
         await handleBroadcast(chat.id, from.id, text);
       } else if (text === '/help') {
         await handleStart(chat.id, from.id);
       } else {
+        // Check if this is a reply to a support question
+        const replyToMessageId = update.message.reply_to_message?.message_id;
+        if (replyToMessageId) {
+          const handled = await handleSupportReply(chat.id, from.id, text, replyToMessageId);
+          if (handled) {
+            return new Response('OK', { headers: corsHeaders });
+          }
+        }
+        
         // Check if this is a rejection reason
         const handled = await handleRejectionReason(chat.id, from.id, text);
         if (!handled) {

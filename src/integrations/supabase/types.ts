@@ -317,6 +317,53 @@ export type Database = {
           },
         ]
       }
+      support_questions: {
+        Row: {
+          admin_message_id: number | null
+          answer: string | null
+          answered_at: string | null
+          answered_by_telegram_id: number | null
+          created_at: string
+          id: string
+          question: string
+          status: string
+          user_profile_id: string | null
+          user_telegram_id: number
+        }
+        Insert: {
+          admin_message_id?: number | null
+          answer?: string | null
+          answered_at?: string | null
+          answered_by_telegram_id?: number | null
+          created_at?: string
+          id?: string
+          question: string
+          status?: string
+          user_profile_id?: string | null
+          user_telegram_id: number
+        }
+        Update: {
+          admin_message_id?: number | null
+          answer?: string | null
+          answered_at?: string | null
+          answered_by_telegram_id?: number | null
+          created_at?: string
+          id?: string
+          question?: string
+          status?: string
+          user_profile_id?: string | null
+          user_telegram_id?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "support_questions_user_profile_id_fkey"
+            columns: ["user_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           created_at: string | null

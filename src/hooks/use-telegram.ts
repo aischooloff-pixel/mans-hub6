@@ -25,9 +25,25 @@ export function useTelegram() {
     }
   }, []);
 
+  const openTelegramLink = (url: string) => {
+    if (webApp?.openTelegramLink) {
+      webApp.openTelegramLink(url);
+    } else {
+      window.open(url, '_blank');
+    }
+  };
+
+  const getBotUsername = (): string | null => {
+    // Get bot username from start_param or hardcoded value
+    // This should match the bot that has the mini app
+    return 'boyshub_bot'; // Replace with actual bot username
+  };
+
   return {
     user,
     webApp,
     isReady: !!webApp,
+    openTelegramLink,
+    getBotUsername,
   };
 }

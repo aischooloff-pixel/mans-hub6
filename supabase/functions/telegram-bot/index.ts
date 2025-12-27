@@ -56,8 +56,8 @@ async function editMessageReplyMarkup(chatId: string | number, messageId: number
   });
 }
 
-async function handleStart(chatId: number, user: any) {
-  console.log('Handling /start command for user:', user);
+async function handleStart(chatId: number, user: any, startParam?: string) {
+  console.log('Handling /start command for user:', user, 'startParam:', startParam);
   
   // Check if user exists in profiles
   const { data: existingProfile } = await supabase
@@ -78,6 +78,22 @@ async function handleStart(chatId: number, user: any) {
     console.log('Created new profile for telegram user:', user.id);
   }
   
+  // Handle support start param
+  if (startParam === 'support') {
+    await sendTelegramMessage(chatId, `💬 <b>Техническая поддержка BoysHub</b>
+
+Напишите ваш вопрос в этот чат, и мы ответим вам в ближайшее время.
+
+<i>Просто отправьте сообщение с вашим вопросом.</i>`);
+    
+    // Set support mode for this user
+    await supabase.from('admin_settings').upsert({
+      key: `support_mode_${user.id}`,
+      value: 'active',
+    });
+    return;
+  }
+  
   const welcomeMessage = `👋 <b>Добро пожаловать в BoysHub!</b>
 
 Это платформа для обмена знаниями и опытом.
@@ -96,6 +112,79 @@ async function handleStart(chatId: number, user: any) {
 💡 <i>Ваши статьи проходят модерацию перед публикацией.</i>`;
 
   await sendTelegramMessage(chatId, welcomeMessage);
+}
+
+async function handleSupportQuestion(chatId: number, user: any, text: string) {
+  console.log('Handling support question from user:', user.id);
+  
+  // Get user profile
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('id, first_name, username')
+    .eq('telegram_id', user.id)
+    .maybeSingle();
+  
+  // Save question to database
+  const { data: question, error } = await supabase
+    .from('support_questions')
+    .insert({
+      user_telegram_id: user.id,
+      user_profile_id: profile?.id || null,
+      question: text,
+      status: 'pending',
+    })
+    .select()
+    .single();
+  
+  if (error) {
+    console.error('Error saving support question:', error);
+    await sendTelegramMessage(chatId, '❌ Произошла ошибка. Попробуйте позже.');
+    return;
+  }
+  
+  // Send confirmation to user
+  await sendTelegramMessage(chatId, `✅ <b>Ваш вопрос получен!</b>
+
+Мы ответим вам в ближайшее время. Ожидайте ответа в этом чате.`);
+  
+  // Notify admin via admin bot
+  const adminMessage = `❓ <b>Новый вопрос в поддержку</b>
+
+👤 <b>От:</b> ${user.first_name || 'User'} ${user.username ? `(@${user.username})` : ''}
+🆔 <b>Telegram ID:</b> ${user.id}
+
+📝 <b>Вопрос:</b>
+${text}
+
+<i>Чтобы ответить, используйте функцию "Ответить" на это сообщение.</i>`;
+
+  // Send to admin via ADMIN bot
+  const ADMIN_BOT_TOKEN = Deno.env.get('ADMIN_BOT_TOKEN')!;
+  const adminResponse = await fetch(`https://api.telegram.org/bot${ADMIN_BOT_TOKEN}/sendMessage`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      chat_id: TELEGRAM_ADMIN_CHAT_ID,
+      text: adminMessage,
+      parse_mode: 'HTML',
+    }),
+  });
+  
+  const adminResult = await adminResponse.json();
+  
+  // Save admin message ID for reply tracking
+  if (adminResult.ok && adminResult.result?.message_id) {
+    await supabase
+      .from('support_questions')
+      .update({ admin_message_id: adminResult.result.message_id })
+      .eq('id', question.id);
+  }
+  
+  // Clear support mode
+  await supabase
+    .from('admin_settings')
+    .delete()
+    .eq('key', `support_mode_${user.id}`);
 }
 
 async function handleCallbackQuery(callbackQuery: any) {
@@ -228,9 +317,10 @@ Deno.serve(async (req) => {
     if (update.message) {
       const { chat, text, from } = update.message;
       
-      // Handle /start command
-      if (text === '/start') {
-        await handleStart(chat.id, from);
+      // Handle /start command (with optional deep link param)
+      if (text?.startsWith('/start')) {
+        const startParam = text.split(' ')[1]; // Get param after /start
+        await handleStart(chat.id, from, startParam);
         return new Response('OK', { headers: corsHeaders });
       }
       
@@ -240,6 +330,18 @@ Deno.serve(async (req) => {
         if (handled) {
           return new Response('OK', { headers: corsHeaders });
         }
+      }
+      
+      // Check if user is in support mode
+      const { data: supportMode } = await supabase
+        .from('admin_settings')
+        .select('value')
+        .eq('key', `support_mode_${from.id}`)
+        .maybeSingle();
+      
+      if (supportMode?.value === 'active') {
+        await handleSupportQuestion(chat.id, from, text);
+        return new Response('OK', { headers: corsHeaders });
       }
     }
 
