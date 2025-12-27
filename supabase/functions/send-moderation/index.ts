@@ -5,15 +5,27 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const TELEGRAM_BOT_TOKEN = Deno.env.get('TELEGRAM_BOT_TOKEN')!;
+const ADMIN_BOT_TOKEN = Deno.env.get('ADMIN_BOT_TOKEN')!;
 const TELEGRAM_ADMIN_CHAT_ID = Deno.env.get('TELEGRAM_ADMIN_CHAT_ID')!;
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
+// Get or create short ID for article
+async function getOrCreateShortId(articleId: string): Promise<string> {
+  const { data, error } = await supabase.rpc('get_or_create_short_id', { p_article_id: articleId });
+  
+  if (error) {
+    console.error('Error getting short ID:', error);
+    return articleId.substring(0, 8);
+  }
+  
+  return data;
+}
+
 async function sendTelegramMessage(chatId: string | number, text: string, options: any = {}) {
-  const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
+  const url = `https://api.telegram.org/bot${ADMIN_BOT_TOKEN}/sendMessage`;
   
   const response = await fetch(url, {
     method: 'POST',
@@ -53,22 +65,27 @@ Deno.serve(async (req) => {
       );
     }
 
-    const message = `📝 <b>Новая статья на модерацию</b>
+    // Generate short ID for moderation buttons
+    const shortId = await getOrCreateShortId(article.id);
 
-<b>Заголовок:</b> ${article.title}
+    const authorData = article.author as any;
 
-<b>Автор:</b> ${article.is_anonymous ? 'Аноним' : article.author?.first_name || 'Unknown'} (@${article.author?.username || 'no_username'})
+    const message = `🆕 <b>Новая статья на модерации</b>
 
-<b>Превью:</b>
+📝 <b>Заголовок:</b> ${article.title}
+
+👤 <b>Автор:</b> ${article.is_anonymous ? 'Аноним' : authorData?.first_name || 'Unknown'} ${authorData?.username ? `(@${authorData.username})` : ''}
+
+📄 <b>Превью:</b>
 ${article.preview || article.body?.substring(0, 300) || 'Нет превью'}...
 
-<b>ID:</b> <code>${article.id}</code>`;
+${article.media_url ? `🎬 <b>Медиа:</b> ${article.media_url}` : ''}`;
 
     const keyboard = {
       inline_keyboard: [
         [
-          { text: '✅ Одобрить', callback_data: `approve:${article.id}` },
-          { text: '❌ Отклонить', callback_data: `reject:${article.id}` },
+          { text: '✅ Принять', callback_data: `approve:${shortId}` },
+          { text: '❌ Отклонить', callback_data: `reject:${shortId}` },
         ],
       ],
     };

@@ -17,19 +17,21 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { mockCategories, mockTopics } from '@/data/mockData';
-import { Send, Image, Link2 } from 'lucide-react';
+import { mockCategories } from '@/data/mockData';
+import { Send, Image, Link2, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { useArticles } from '@/hooks/use-articles';
 
 interface CreateArticleModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onSuccess?: () => void;
 }
 
-export function CreateArticleModal({ isOpen, onClose }: CreateArticleModalProps) {
+export function CreateArticleModal({ isOpen, onClose, onSuccess }: CreateArticleModalProps) {
+  const { createArticle, loading } = useArticles();
   const [formData, setFormData] = useState({
     category_id: '',
-    topic_id: '',
     title: '',
     body: '',
     media_url: '',
@@ -38,32 +40,47 @@ export function CreateArticleModal({ isOpen, onClose }: CreateArticleModalProps)
     allow_comments: true,
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!formData.title.trim() || !formData.body.trim()) {
-      toast.error('Заполните заголовок и текст статьи');
+    if (!formData.title.trim()) {
+      toast.error('Введите заголовок статьи');
+      return;
+    }
+    
+    if (!formData.body.trim()) {
+      toast.error('Введите текст статьи');
       return;
     }
 
-    // Mock submit
-    toast.success('Статья отправлена на модерацию');
-    onClose();
-    setFormData({
-      category_id: '',
-      topic_id: '',
-      title: '',
-      body: '',
-      media_url: '',
-      is_anonymous: false,
-      sources: '',
-      allow_comments: true,
-    });
-  };
+    if (formData.body.trim().length < 100) {
+      toast.error('Статья должна содержать минимум 100 символов');
+      return;
+    }
 
-  const filteredTopics = formData.category_id
-    ? mockTopics.filter((t) => t.category_id === formData.category_id)
-    : mockTopics;
+    const article = await createArticle({
+      category_id: formData.category_id,
+      title: formData.title.trim(),
+      body: formData.body.trim(),
+      media_url: formData.media_url.trim() || undefined,
+      is_anonymous: formData.is_anonymous,
+      allow_comments: formData.allow_comments,
+    });
+
+    if (article) {
+      onClose();
+      onSuccess?.();
+      setFormData({
+        category_id: '',
+        title: '',
+        body: '',
+        media_url: '',
+        is_anonymous: false,
+        sources: '',
+        allow_comments: true,
+      });
+    }
+  };
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -79,7 +96,7 @@ export function CreateArticleModal({ isOpen, onClose }: CreateArticleModalProps)
             <Select
               value={formData.category_id}
               onValueChange={(value) =>
-                setFormData({ ...formData, category_id: value, topic_id: '' })
+                setFormData({ ...formData, category_id: value })
               }
             >
               <SelectTrigger>
@@ -95,45 +112,29 @@ export function CreateArticleModal({ isOpen, onClose }: CreateArticleModalProps)
             </Select>
           </div>
 
-          {/* Topic */}
-          <div className="space-y-2">
-            <Label>Тема</Label>
-            <Select
-              value={formData.topic_id}
-              onValueChange={(value) => setFormData({ ...formData, topic_id: value })}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Выберите тему" />
-              </SelectTrigger>
-              <SelectContent>
-                {filteredTopics.map((topic) => (
-                  <SelectItem key={topic.id} value={topic.id}>
-                    {topic.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
           {/* Title */}
           <div className="space-y-2">
-            <Label>Заголовок</Label>
+            <Label>Заголовок *</Label>
             <Input
               value={formData.title}
               onChange={(e) => setFormData({ ...formData, title: e.target.value })}
               placeholder="Введите заголовок статьи"
+              maxLength={200}
             />
           </div>
 
           {/* Body */}
           <div className="space-y-2">
-            <Label>Текст статьи</Label>
+            <Label>Текст статьи * (минимум 100 символов)</Label>
             <Textarea
               value={formData.body}
               onChange={(e) => setFormData({ ...formData, body: e.target.value })}
               placeholder="Напишите вашу статью..."
-              rows={6}
+              rows={8}
             />
+            <p className="text-xs text-muted-foreground text-right">
+              {formData.body.length} символов
+            </p>
           </div>
 
           {/* Media URL */}
@@ -198,9 +199,18 @@ export function CreateArticleModal({ isOpen, onClose }: CreateArticleModalProps)
           </div>
 
           {/* Submit */}
-          <Button type="submit" className="w-full gap-2">
-            <Send className="h-4 w-4" />
-            Отправить на модерацию
+          <Button type="submit" className="w-full gap-2" disabled={loading}>
+            {loading ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Отправка...
+              </>
+            ) : (
+              <>
+                <Send className="h-4 w-4" />
+                Отправить на модерацию
+              </>
+            )}
           </Button>
         </form>
       </DialogContent>
