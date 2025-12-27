@@ -5,6 +5,7 @@ import { ArticleListCard } from '@/components/articles/ArticleListCard';
 import { SettingsModal } from '@/components/profile/SettingsModal';
 import { PremiumModal } from '@/components/profile/PremiumModal';
 import { UserArticlesModal } from '@/components/profile/UserArticlesModal';
+import { ReputationHistoryModal } from '@/components/profile/ReputationHistoryModal';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Settings, Crown, FileText, Bookmark, History, Star } from 'lucide-react';
@@ -15,6 +16,7 @@ export default function Profile() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isPremiumOpen, setIsPremiumOpen] = useState(false);
   const [isArticlesOpen, setIsArticlesOpen] = useState(false);
+  const [isRepHistoryOpen, setIsRepHistoryOpen] = useState(false);
 
   const userArticles = mockArticles.filter((a) => a.author_id === currentUser.id);
   const favoriteArticles = mockArticles.slice(0, 3);
@@ -45,10 +47,13 @@ export default function Profile() {
               </h1>
               <p className="text-sm text-muted-foreground">@{currentUser.username}</p>
               <div className="mt-2 flex items-center gap-4">
-                <div className="flex items-center gap-1">
+                <button
+                  onClick={() => setIsRepHistoryOpen(true)}
+                  className="flex items-center gap-1 hover:text-primary transition-colors"
+                >
                   <Star className="h-4 w-4 text-primary" />
                   <span className="text-sm font-medium">{currentUser.reputation} rep</span>
-                </div>
+                </button>
                 <button
                   onClick={() => setIsArticlesOpen(true)}
                   className="flex items-center gap-1 hover:text-primary transition-colors"
@@ -169,6 +174,10 @@ export default function Profile() {
         isOpen={isArticlesOpen}
         onClose={() => setIsArticlesOpen(false)}
         articles={userArticles}
+      />
+      <ReputationHistoryModal
+        isOpen={isRepHistoryOpen}
+        onClose={() => setIsRepHistoryOpen(false)}
       />
     </div>
   );

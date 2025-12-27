@@ -57,25 +57,25 @@ export function UserArticlesModal({
       {/* Modal */}
       <div
         className={cn(
-          'absolute inset-x-0 bottom-0 max-h-[85vh] overflow-y-auto rounded-t-2xl bg-card animate-slide-up',
-          'md:inset-auto md:left-1/2 md:top-1/2 md:w-full md:max-w-lg md:-translate-x-1/2 md:-translate-y-1/2 md:rounded-lg'
+          'absolute inset-x-0 bottom-0 flex max-h-[85vh] flex-col rounded-t-2xl bg-card animate-slide-up',
+          'md:inset-auto md:left-1/2 md:top-1/2 md:w-full md:max-w-lg md:-translate-x-1/2 md:-translate-y-1/2 md:rounded-2xl'
         )}
       >
         {/* Handle bar for mobile */}
-        <div className="sticky top-0 z-10 flex justify-center bg-card pt-3 md:hidden">
+        <div className="flex shrink-0 justify-center bg-card pt-3 md:hidden">
           <div className="h-1 w-12 rounded-full bg-border" />
         </div>
 
         {/* Header */}
-        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-border bg-card p-4 md:top-0">
+        <div className="flex shrink-0 items-center justify-between border-b border-border bg-card p-4">
           <h2 className="font-heading text-lg font-semibold">{title}</h2>
           <Button variant="ghost" size="icon" onClick={onClose}>
             <X className="h-5 w-5" />
           </Button>
         </div>
 
-        {/* Content */}
-        <div className="p-4">
+        {/* Content - Scrollable */}
+        <div className="flex-1 overflow-y-auto p-4">
           {articles.length === 0 ? (
             <div className="py-12 text-center">
               <p className="text-muted-foreground">Вы ничего не написали</p>
