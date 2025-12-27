@@ -253,6 +253,24 @@ CREATE TABLE public.reputation_history (
 
 
 --
+-- Name: support_questions; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.support_questions (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    user_telegram_id bigint NOT NULL,
+    user_profile_id uuid,
+    question text NOT NULL,
+    answer text,
+    answered_by_telegram_id bigint,
+    admin_message_id bigint,
+    status text DEFAULT 'pending'::text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    answered_at timestamp with time zone
+);
+
+
+--
 -- Name: user_roles; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -342,6 +360,14 @@ ALTER TABLE ONLY public.profiles
 
 ALTER TABLE ONLY public.reputation_history
     ADD CONSTRAINT reputation_history_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: support_questions support_questions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.support_questions
+    ADD CONSTRAINT support_questions_pkey PRIMARY KEY (id);
 
 
 --
@@ -467,6 +493,14 @@ ALTER TABLE ONLY public.reputation_history
 
 
 --
+-- Name: support_questions support_questions_user_profile_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.support_questions
+    ADD CONSTRAINT support_questions_user_profile_id_fkey FOREIGN KEY (user_profile_id) REFERENCES public.profiles(id);
+
+
+--
 -- Name: user_roles user_roles_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -573,6 +607,13 @@ CREATE POLICY "Service role only" ON public.reputation_history TO service_role U
 
 
 --
+-- Name: support_questions Service role only; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Service role only" ON public.support_questions USING (false) WITH CHECK (true);
+
+
+--
 -- Name: user_roles Users can view own roles; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -620,6 +661,12 @@ ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 --
 
 ALTER TABLE public.reputation_history ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: support_questions; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.support_questions ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: user_roles; Type: ROW SECURITY; Schema: public; Owner: -
