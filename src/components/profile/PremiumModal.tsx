@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { X, Crown, Zap, Share2, Bot, BookOpen, Infinity, BadgeCheck } from 'lucide-react';
+import { useState, useRef } from 'react';
+import { X, Check, Crown, Sparkles, MessageCircle, Users, Infinity, BadgeCheck, Bot, FileText, Headphones, Music, ShoppingBag, GraduationCap, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
@@ -9,55 +9,103 @@ interface PremiumModalProps {
 }
 
 export function PremiumModal({ isOpen, onClose }: PremiumModalProps) {
-  const [selectedPlan, setSelectedPlan] = useState<'monthly' | 'yearly'>('yearly');
+  const [billingPeriod, setBillingPeriod] = useState<'monthly' | 'yearly'>('monthly');
+  const [currentSlide, setCurrentSlide] = useState(1);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   if (!isOpen) return null;
 
-  const features = [
-    { icon: Crown, text: 'Продажа своего продукта', desc: 'Зарабатывай деньги прямо через профиль' },
-    { icon: Share2, text: 'Соц сети в профиле', desc: 'Развивайся как автор и привлекай аудиторию' },
-    { icon: Bot, text: 'ИИ ассистент', desc: 'Ответ на любой вопрос по темам хаба' },
-    { icon: BookOpen, text: 'Премиум материалы', desc: 'Чек-листы, гайды и лимитированная информация' },
-    { icon: Infinity, text: 'Безлимит публикаций', desc: 'Публикуй сколько хочешь в день' },
-    { icon: BadgeCheck, text: 'PRO значок', desc: 'Выделяйся среди других авторов' },
+  const plans = [
+    {
+      id: 'free',
+      name: 'Free',
+      description: 'Базовый доступ к платформе',
+      price: { monthly: 0, yearly: 0 },
+      originalPrice: { monthly: 0, yearly: 0 },
+      features: [
+        { icon: FileText, text: '3 статьи в день' },
+        { icon: Headphones, text: 'Подкасты' },
+        { icon: Music, text: 'Плейлисты' },
+      ],
+      popular: false,
+    },
+    {
+      id: 'plus',
+      name: 'Plus',
+      description: 'Расширенные возможности',
+      price: { monthly: 299, yearly: 2990 },
+      originalPrice: { monthly: 598, yearly: 5980 },
+      features: [
+        { icon: MessageCircle, text: 'Соц сети в профиле' },
+        { icon: Bot, text: 'ИИ ассистент' },
+        { icon: Users, text: 'Закрытое сообщество' },
+        { icon: Infinity, text: 'Безлимитные публикации' },
+        { icon: BadgeCheck, text: 'PRO значок' },
+      ],
+      popular: true,
+    },
+    {
+      id: 'premium',
+      name: 'Premium',
+      description: 'Максимум возможностей',
+      price: { monthly: 2490, yearly: 24900 },
+      originalPrice: { monthly: 4980, yearly: 49800 },
+      features: [
+        { icon: Crown, text: 'Сообщество предпринимателей' },
+        { icon: GraduationCap, text: 'Менторство от основателя' },
+        { icon: ShoppingBag, text: 'Продажа своего продукта' },
+      ],
+      popular: false,
+    },
   ];
 
-  const plans = {
-    monthly: { price: 299, period: 'месяц' },
-    yearly: { price: 2390, period: 'год', savings: '33%' },
+  const handlePayment = (planId: string) => {
+    console.log('Processing payment for', planId, 'plan,', billingPeriod);
+    onClose();
   };
 
-  const handlePayment = () => {
-    // TODO: Integrate Telegram Payments
-    console.log('Processing payment for', selectedPlan, 'plan');
-    onClose();
+  const scrollToSlide = (index: number) => {
+    if (scrollContainerRef.current) {
+      const container = scrollContainerRef.current;
+      const slideWidth = container.offsetWidth * 0.85;
+      container.scrollTo({
+        left: index * slideWidth,
+        behavior: 'smooth'
+      });
+      setCurrentSlide(index);
+    }
+  };
+
+  const handleScroll = () => {
+    if (scrollContainerRef.current) {
+      const container = scrollContainerRef.current;
+      const slideWidth = container.offsetWidth * 0.85;
+      const newSlide = Math.round(container.scrollLeft / slideWidth);
+      setCurrentSlide(newSlide);
+    }
   };
 
   return (
     <div className="fixed inset-0 z-[100]">
-      {/* Backdrop */}
       <div
         className="absolute inset-0 bg-background/80 backdrop-blur-sm animate-fade-in"
         onClick={onClose}
       />
 
-      {/* Modal */}
       <div
         className={cn(
-          'absolute inset-x-0 bottom-0 max-h-[90vh] overflow-y-auto rounded-t-2xl bg-card animate-slide-up',
-          'md:inset-auto md:left-1/2 md:top-1/2 md:w-full md:max-w-md md:-translate-x-1/2 md:-translate-y-1/2 md:rounded-lg'
+          'absolute inset-x-0 bottom-0 max-h-[95vh] overflow-y-auto rounded-t-2xl bg-card animate-slide-up',
+          'md:inset-auto md:left-1/2 md:top-1/2 md:w-full md:max-w-4xl md:-translate-x-1/2 md:-translate-y-1/2 md:rounded-lg md:max-h-[90vh]'
         )}
       >
-        {/* Handle bar for mobile */}
         <div className="sticky top-0 z-10 flex justify-center bg-card pt-3 md:hidden">
           <div className="h-1 w-12 rounded-full bg-border" />
         </div>
 
-        {/* Close button */}
         <Button
           variant="ghost"
           size="icon"
-          className="absolute right-4 top-4 h-8 w-8"
+          className="absolute right-4 top-4 h-8 w-8 z-20"
           onClick={onClose}
         >
           <X className="h-4 w-4" />
@@ -66,87 +114,200 @@ export function PremiumModal({ isOpen, onClose }: PremiumModalProps) {
         <div className="p-6">
           {/* Header */}
           <div className="mb-6 text-center">
-            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-foreground/20 to-foreground/5">
-              <Crown className="h-8 w-8" />
+            <h2 className="mb-2 font-heading text-2xl font-bold">Выберите тариф</h2>
+            <div className="flex items-center justify-center gap-2 mb-4">
+              <span className="rounded-full bg-destructive/10 px-3 py-1 text-sm font-medium text-destructive">
+                Скидка 50%
+              </span>
             </div>
-            <h2 className="mb-2 font-heading text-2xl font-bold">Premium</h2>
-            <p className="text-muted-foreground">
-              Получите доступ ко всем возможностям платформы
+            <p className="text-muted-foreground text-sm">
+              Выберите годовой тариф для экономии до 50%
             </p>
           </div>
 
-          {/* Features */}
-          <div className="mb-6 space-y-2">
-            {features.map((feature) => (
-              <div
-                key={feature.text}
-                className="flex items-start gap-3 rounded-lg bg-secondary/50 p-3"
+          {/* Billing Toggle */}
+          <div className="flex items-center justify-center gap-2 mb-8">
+            <div className="flex items-center rounded-full bg-secondary p-1">
+              <button
+                onClick={() => setBillingPeriod('yearly')}
+                className={cn(
+                  'rounded-full px-4 py-2 text-sm font-medium transition-all',
+                  billingPeriod === 'yearly'
+                    ? 'bg-card text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                )}
               >
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-foreground/10">
-                  <feature.icon className="h-4 w-4" />
+                Год
+              </button>
+              <button
+                onClick={() => setBillingPeriod('monthly')}
+                className={cn(
+                  'rounded-full px-4 py-2 text-sm font-medium transition-all',
+                  billingPeriod === 'monthly'
+                    ? 'bg-card text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                )}
+              >
+                Месяц
+              </button>
+            </div>
+          </div>
+
+          {/* Plans - Desktop Grid */}
+          <div className="hidden md:grid md:grid-cols-3 gap-4 mb-6">
+            {plans.map((plan) => (
+              <div
+                key={plan.id}
+                className={cn(
+                  'relative rounded-2xl border-2 p-6 transition-all',
+                  plan.popular
+                    ? 'border-primary bg-primary/5 shadow-lg'
+                    : 'border-border bg-card hover:border-primary/50'
+                )}
+              >
+                {plan.popular && (
+                  <div className="absolute -top-3 left-1/2 -translate-x-1/2">
+                    <span className="rounded-full bg-primary px-3 py-1 text-xs font-medium text-primary-foreground">
+                      Выбирают чаще
+                    </span>
+                  </div>
+                )}
+
+                <div className="mb-4">
+                  <h3 className="font-heading text-xl font-bold">{plan.name}</h3>
+                  <p className="text-sm text-muted-foreground">{plan.description}</p>
                 </div>
-                <div className="flex flex-col">
-                  <span className="text-sm font-medium">{feature.text}</span>
-                  <span className="text-xs text-muted-foreground">{feature.desc}</span>
+
+                <div className="mb-4">
+                  <div className="flex items-baseline gap-1">
+                    <span className="font-heading text-3xl font-bold">
+                      {plan.price[billingPeriod]}₽
+                    </span>
+                    <span className="text-sm text-muted-foreground">
+                      /{billingPeriod === 'monthly' ? 'мес' : 'год'}
+                    </span>
+                  </div>
+                  {plan.originalPrice[billingPeriod] > 0 && (
+                    <p className="text-sm text-muted-foreground line-through">
+                      {plan.originalPrice[billingPeriod]}₽
+                    </p>
+                  )}
                 </div>
+
+                <div className="space-y-3 mb-6">
+                  {plan.features.map((feature, idx) => (
+                    <div key={idx} className="flex items-center gap-2">
+                      <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/10">
+                        <Check className="h-3 w-3 text-primary" />
+                      </div>
+                      <span className="text-sm">{feature.text}</span>
+                    </div>
+                  ))}
+                </div>
+
+                <Button
+                  onClick={() => handlePayment(plan.id)}
+                  className={cn(
+                    'w-full',
+                    plan.id === 'free' ? 'variant-secondary' : ''
+                  )}
+                  variant={plan.id === 'free' ? 'secondary' : 'default'}
+                >
+                  {plan.id === 'free' ? 'Текущий план' : 'Выбрать'}
+                </Button>
               </div>
             ))}
           </div>
 
-          {/* Plan selection */}
-          <div className="mb-6 space-y-3">
-            <button
-              onClick={() => setSelectedPlan('monthly')}
-              className={cn(
-                'flex w-full items-center justify-between rounded-lg border-2 p-4 transition-colors',
-                selectedPlan === 'monthly'
-                  ? 'border-foreground bg-foreground/5'
-                  : 'border-border hover:border-foreground/50'
-              )}
+          {/* Plans - Mobile Carousel */}
+          <div className="md:hidden mb-6">
+            <div
+              ref={scrollContainerRef}
+              onScroll={handleScroll}
+              className="flex gap-4 overflow-x-auto snap-x snap-mandatory scrollbar-hide pb-4"
+              style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
             >
-              <div className="text-left">
-                <p className="font-medium">Ежемесячно</p>
-                <p className="text-sm text-muted-foreground">Оплата каждый месяц</p>
-              </div>
-              <div className="text-right">
-                <p className="font-heading text-xl font-bold">{plans.monthly.price}₽</p>
-                <p className="text-xs text-muted-foreground">/{plans.monthly.period}</p>
-              </div>
-            </button>
+              {plans.map((plan, index) => (
+                <div
+                  key={plan.id}
+                  className={cn(
+                    'relative flex-shrink-0 w-[85%] rounded-2xl border-2 p-5 snap-center transition-all',
+                    plan.popular
+                      ? 'border-primary bg-primary/5 shadow-lg'
+                      : 'border-border bg-card'
+                  )}
+                >
+                  {plan.popular && (
+                    <div className="absolute -top-3 left-1/2 -translate-x-1/2">
+                      <span className="rounded-full bg-primary px-3 py-1 text-xs font-medium text-primary-foreground whitespace-nowrap">
+                        Выбирают чаще
+                      </span>
+                    </div>
+                  )}
 
-            <button
-              onClick={() => setSelectedPlan('yearly')}
-              className={cn(
-                'relative flex w-full items-center justify-between rounded-lg border-2 p-4 transition-colors',
-                selectedPlan === 'yearly'
-                  ? 'border-foreground bg-foreground/5'
-                  : 'border-border hover:border-foreground/50'
-              )}
-            >
-              {plans.yearly.savings && (
-                <span className="absolute -top-2 right-4 rounded-full bg-foreground px-2 py-0.5 text-xs font-medium text-background">
-                  -{plans.yearly.savings}
-                </span>
-              )}
-              <div className="text-left">
-                <p className="font-medium">Ежегодно</p>
-                <p className="text-sm text-muted-foreground">Экономия {plans.yearly.savings}</p>
-              </div>
-              <div className="text-right">
-                <p className="font-heading text-xl font-bold">{plans.yearly.price}₽</p>
-                <p className="text-xs text-muted-foreground">/{plans.yearly.period}</p>
-              </div>
-            </button>
+                  <div className="mb-4 mt-2">
+                    <h3 className="font-heading text-xl font-bold">{plan.name}</h3>
+                    <p className="text-sm text-muted-foreground">{plan.description}</p>
+                  </div>
+
+                  <div className="mb-4">
+                    <div className="flex items-baseline gap-1">
+                      <span className="font-heading text-3xl font-bold">
+                        {plan.price[billingPeriod]}₽
+                      </span>
+                      <span className="text-sm text-muted-foreground">
+                        /{billingPeriod === 'monthly' ? 'мес' : 'год'}
+                      </span>
+                    </div>
+                    {plan.originalPrice[billingPeriod] > 0 && (
+                      <p className="text-sm text-muted-foreground line-through">
+                        {plan.originalPrice[billingPeriod]}₽
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="space-y-3 mb-6">
+                    {plan.features.map((feature, idx) => (
+                      <div key={idx} className="flex items-center gap-2">
+                        <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/10">
+                          <Check className="h-3 w-3 text-primary" />
+                        </div>
+                        <span className="text-sm">{feature.text}</span>
+                      </div>
+                    ))}
+                  </div>
+
+                  <Button
+                    onClick={() => handlePayment(plan.id)}
+                    className="w-full"
+                    variant={plan.id === 'free' ? 'secondary' : 'default'}
+                  >
+                    {plan.id === 'free' ? 'Текущий план' : 'Выбрать'}
+                  </Button>
+                </div>
+              ))}
+            </div>
+
+            {/* Dots indicator */}
+            <div className="flex justify-center gap-2 mt-4">
+              {plans.map((_, index) => (
+                <button
+                  key={index}
+                  onClick={() => scrollToSlide(index)}
+                  className={cn(
+                    'h-2 rounded-full transition-all',
+                    currentSlide === index
+                      ? 'w-6 bg-primary'
+                      : 'w-2 bg-border'
+                  )}
+                />
+              ))}
+            </div>
           </div>
 
-          {/* Payment button */}
-          <Button onClick={handlePayment} className="w-full gap-2" size="lg">
-            <Crown className="h-4 w-4" />
-            Оплатить {selectedPlan === 'monthly' ? plans.monthly.price : plans.yearly.price}₽
-          </Button>
-
-          <p className="mt-4 text-center text-xs text-muted-foreground">
-            Оплата производится через Telegram Payments. Подписку можно отменить в любое время.
+          {/* Info text */}
+          <p className="text-center text-sm text-muted-foreground">
+            Подробная информация о тарифах доступна в нашем Telegram-канале
           </p>
         </div>
       </div>
