@@ -38,6 +38,7 @@ export default function Profile() {
   const { getMyReputation } = useReputation();
   const { openTelegramLink, getBotUsername, webApp } = useTelegram();
   const [activeTab, setActiveTab] = useState('articles');
+  const [showAllActivities, setShowAllActivities] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isPremiumOpen, setIsPremiumOpen] = useState(false);
   const [isArticlesOpen, setIsArticlesOpen] = useState(false);
@@ -456,7 +457,19 @@ export default function Profile() {
 
             <TabsContent value="activity">
               <div className="rounded-2xl bg-card p-4">
-                <h2 className="mb-4 font-heading text-lg font-semibold">История активности</h2>
+                <div className="mb-4 flex items-center justify-between">
+                  <h2 className="font-heading text-lg font-semibold">История активности</h2>
+                  {activities.length > 3 && !showAllActivities && (
+                    <Button variant="ghost" size="sm" onClick={() => setShowAllActivities(true)}>
+                      Смотреть все
+                    </Button>
+                  )}
+                  {showAllActivities && activities.length > 3 && (
+                    <Button variant="ghost" size="sm" onClick={() => setShowAllActivities(false)}>
+                      Скрыть
+                    </Button>
+                  )}
+                </div>
                 {activitiesLoading ? (
                   <div className="space-y-3">
                     {[1, 2, 3].map((i) => (
@@ -465,7 +478,7 @@ export default function Profile() {
                   </div>
                 ) : activities.length > 0 ? (
                   <div className="space-y-3">
-                    {activities.map((activity, index) => (
+                    {(showAllActivities ? activities : activities.slice(0, 3)).map((activity, index) => (
                       <div
                         key={activity.id}
                         className="animate-slide-up flex items-start gap-3 p-3 rounded-lg bg-secondary/30"
