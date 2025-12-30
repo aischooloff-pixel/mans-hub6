@@ -134,6 +134,7 @@ async function handleStart(chatId: number, userId: number) {
 📝 /pending — Статьи на модерации
 📰 /st — Список статей
 🚨 /zb — Жалобы на статьи
+⭐ /otz — Отзывы пользователей
 ❓ /questions — Вопросы в поддержку
 📢 /broadcast — Рассылка всем пользователям
 🎙 /podc — Управление подкастами
@@ -2316,6 +2317,15 @@ async function handleCallbackQuery(callbackQuery: any) {
   } else if (action === 'reports') {
     await answerCallbackQuery(callbackQuery.id);
     await handleReports(message.chat.id, from.id, parseInt(param || '0'), message.message_id);
+  } else if (action === 'reviews') {
+    await answerCallbackQuery(callbackQuery.id);
+    await handleReviews(message.chat.id, from.id, parseInt(param || '0'), message.message_id);
+  } else if (action === 'review_approve') {
+    await handleReviewApprove(callbackQuery, param);
+  } else if (action === 'review_reject') {
+    await handleReviewReject(callbackQuery, param);
+  } else if (action === 'review_delete') {
+    await handleReviewDelete(callbackQuery, param);
   }
 }
 
@@ -2422,6 +2432,240 @@ async function handleReportDone(callbackQuery: any, reportId: string) {
   await handleReports(message.chat.id, from.id, 0, message.message_id);
 }
 
+// ==================== REVIEWS MANAGEMENT ====================
+
+const REVIEWS_PER_PAGE = 10;
+
+// Handle /otz command - show reviews
+async function handleReviews(chatId: number, userId: number, page: number = 0, messageId?: number) {
+  if (!isAdmin(userId)) return;
+
+  const from = page * REVIEWS_PER_PAGE;
+
+  // Get stats
+  const { count: totalCount } = await supabase
+    .from('reviews')
+    .select('*', { count: 'exact', head: true });
+
+  const { count: pendingCount } = await supabase
+    .from('reviews')
+    .select('*', { count: 'exact', head: true })
+    .eq('status', 'pending');
+
+  const { data: allReviews } = await supabase
+    .from('reviews')
+    .select('rating')
+    .eq('status', 'approved');
+
+  const avgRating = allReviews && allReviews.length > 0
+    ? (allReviews.reduce((sum, r) => sum + r.rating, 0) / allReviews.length).toFixed(1)
+    : '0.0';
+
+  // Get reviews with pagination
+  const { data: reviews, error } = await supabase
+    .from('reviews')
+    .select(`
+      id,
+      rating,
+      review_text,
+      suggestions,
+      status,
+      created_at,
+      user:user_profile_id(telegram_id, username, first_name)
+    `)
+    .order('created_at', { ascending: false })
+    .range(from, from + REVIEWS_PER_PAGE - 1);
+
+  if (error) {
+    console.error('Error fetching reviews:', error);
+    await sendAdminMessage(chatId, '❌ Ошибка загрузки отзывов');
+    return;
+  }
+
+  const totalPages = Math.ceil((totalCount || 0) / REVIEWS_PER_PAGE);
+
+  let message = `⭐ <b>Отзывы пользователей</b>
+
+📊 <b>Статистика:</b>
+├ Всего: ${totalCount || 0}
+├ На модерации: ${pendingCount || 0}
+└ Средний рейтинг: ${avgRating}/5
+
+📄 Страница ${page + 1}/${totalPages || 1}\n\n`;
+
+  if (!reviews || reviews.length === 0) {
+    message += '<i>Нет отзывов</i>';
+  } else {
+    for (const review of reviews) {
+      const user = review.user as any;
+      const stars = '⭐'.repeat(review.rating);
+      const statusIcon = review.status === 'pending' ? '⏳' : review.status === 'approved' ? '✅' : '❌';
+      const authorDisplay = user?.username ? `@${user.username}` : user?.first_name || `ID:${user?.telegram_id}`;
+      
+      message += `${statusIcon} ${stars} (${review.rating}/5)\n`;
+      message += `   👤 ${authorDisplay}\n`;
+      message += `   💬 ${(review.review_text || '').substring(0, 50)}${(review.review_text || '').length > 50 ? '...' : ''}\n`;
+      if (review.suggestions) {
+        message += `   💡 ${(review.suggestions || '').substring(0, 30)}...\n`;
+      }
+      message += '\n';
+    }
+  }
+
+  message += '\n🔍 Поиск: <code>/search_otz текст</code>';
+
+  // Build buttons
+  const buttons: any[][] = [];
+  if (reviews && reviews.length > 0) {
+    for (const review of reviews) {
+      const user = review.user as any;
+      const label = user?.username ? `@${user.username}` : (user?.first_name || 'Отзыв').substring(0, 15);
+      const statusIcon = review.status === 'pending' ? '⏳' : review.status === 'approved' ? '✅' : '❌';
+      
+      if (review.status === 'pending') {
+        buttons.push([
+          { text: `✅ ${label}`, callback_data: `review_approve:${review.id}` },
+          { text: `❌ ${label}`, callback_data: `review_reject:${review.id}` },
+        ]);
+      } else {
+        buttons.push([{ text: `${statusIcon} 🗑 ${label}`, callback_data: `review_delete:${review.id}` }]);
+      }
+    }
+  }
+
+  // Pagination
+  const navButtons: any[] = [];
+  if (page > 0) {
+    navButtons.push({ text: '⬅️ Назад', callback_data: `reviews:${page - 1}` });
+  }
+  if (page < totalPages - 1) {
+    navButtons.push({ text: 'Вперёд ➡️', callback_data: `reviews:${page + 1}` });
+  }
+  if (navButtons.length > 0) {
+    buttons.push(navButtons);
+  }
+
+  const keyboard = { inline_keyboard: buttons };
+
+  if (messageId) {
+    await editAdminMessage(chatId, messageId, message, { reply_markup: keyboard });
+  } else {
+    await sendAdminMessage(chatId, message, { reply_markup: keyboard });
+  }
+}
+
+// Handle review approve
+async function handleReviewApprove(callbackQuery: any, reviewId: string) {
+  const { id, message, from } = callbackQuery;
+
+  const { error } = await supabase
+    .from('reviews')
+    .update({ status: 'approved', updated_at: new Date().toISOString() })
+    .eq('id', reviewId);
+
+  if (error) {
+    console.error('Error approving review:', error);
+    await answerCallbackQuery(id, '❌ Ошибка');
+    return;
+  }
+
+  await answerCallbackQuery(id, '✅ Отзыв одобрен');
+  await handleReviews(message.chat.id, from.id, 0, message.message_id);
+}
+
+// Handle review reject
+async function handleReviewReject(callbackQuery: any, reviewId: string) {
+  const { id, message, from } = callbackQuery;
+
+  const { error } = await supabase
+    .from('reviews')
+    .update({ status: 'rejected', updated_at: new Date().toISOString() })
+    .eq('id', reviewId);
+
+  if (error) {
+    console.error('Error rejecting review:', error);
+    await answerCallbackQuery(id, '❌ Ошибка');
+    return;
+  }
+
+  await answerCallbackQuery(id, '❌ Отзыв отклонён');
+  await handleReviews(message.chat.id, from.id, 0, message.message_id);
+}
+
+// Handle review delete
+async function handleReviewDelete(callbackQuery: any, reviewId: string) {
+  const { id, message, from } = callbackQuery;
+
+  const { error } = await supabase
+    .from('reviews')
+    .delete()
+    .eq('id', reviewId);
+
+  if (error) {
+    console.error('Error deleting review:', error);
+    await answerCallbackQuery(id, '❌ Ошибка удаления');
+    return;
+  }
+
+  await answerCallbackQuery(id, '🗑 Отзыв удалён');
+  await handleReviews(message.chat.id, from.id, 0, message.message_id);
+}
+
+// Handle /search_otz command
+async function handleSearchReviews(chatId: number, userId: number, query: string) {
+  if (!isAdmin(userId)) return;
+
+  if (!query) {
+    await sendAdminMessage(chatId, `🔍 <b>Поиск отзывов</b>
+
+Используйте:
+<code>/search_otz текст</code>
+
+Пример:
+<code>/search_otz отличное приложение</code>`);
+    return;
+  }
+
+  const { data: reviews, error } = await supabase
+    .from('reviews')
+    .select(`
+      id,
+      rating,
+      review_text,
+      suggestions,
+      status,
+      created_at,
+      user:user_profile_id(telegram_id, username, first_name)
+    `)
+    .or(`review_text.ilike.%${query}%,suggestions.ilike.%${query}%`)
+    .order('created_at', { ascending: false })
+    .limit(10);
+
+  if (error || !reviews || reviews.length === 0) {
+    await sendAdminMessage(chatId, `🔍 Отзывы по запросу "<b>${query}</b>" не найдены`);
+    return;
+  }
+
+  let message = `🔍 <b>Найдено отзывов: ${reviews.length}</b>\n\n`;
+
+  for (const review of reviews) {
+    const user = review.user as any;
+    const stars = '⭐'.repeat(review.rating);
+    const statusIcon = review.status === 'pending' ? '⏳' : review.status === 'approved' ? '✅' : '❌';
+    const authorDisplay = user?.username ? `@${user.username}` : user?.first_name || `ID:${user?.telegram_id}`;
+    
+    message += `${statusIcon} ${stars} (${review.rating}/5)\n`;
+    message += `👤 ${authorDisplay}\n`;
+    message += `💬 ${review.review_text}\n`;
+    if (review.suggestions) {
+      message += `💡 ${review.suggestions}\n`;
+    }
+    message += '\n';
+  }
+
+  await sendAdminMessage(chatId, message);
+}
+
 // Send new article notification to admin
 export async function sendModerationNotification(article: any) {
   const shortId = await getOrCreateShortId(article.id);
@@ -2517,6 +2761,13 @@ Deno.serve(async (req) => {
         await handleQuestions(chat.id, from.id);
       } else if (text === '/zb') {
         await handleReports(chat.id, from.id);
+      } else if (text === '/otz') {
+        await handleReviews(chat.id, from.id);
+      } else if (text?.startsWith('/search_otz ')) {
+        const query = text.replace('/search_otz ', '').trim();
+        await handleSearchReviews(chat.id, from.id, query);
+      } else if (text === '/search_otz') {
+        await handleSearchReviews(chat.id, from.id, '');
       } else if (text?.startsWith('/broadcast')) {
         await handleBroadcast(chat.id, from.id, text);
       } else if (text === '/podc') {

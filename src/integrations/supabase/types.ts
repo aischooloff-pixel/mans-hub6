@@ -628,6 +628,50 @@ export type Database = {
           },
         ]
       }
+      reviews: {
+        Row: {
+          created_at: string
+          id: string
+          rating: number
+          rejection_reason: string | null
+          review_text: string
+          status: string
+          suggestions: string | null
+          updated_at: string
+          user_profile_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          rating: number
+          rejection_reason?: string | null
+          review_text: string
+          status?: string
+          suggestions?: string | null
+          updated_at?: string
+          user_profile_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          rating?: number
+          rejection_reason?: string | null
+          review_text?: string
+          status?: string
+          suggestions?: string | null
+          updated_at?: string
+          user_profile_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reviews_user_profile_id_fkey"
+            columns: ["user_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       support_questions: {
         Row: {
           admin_message_id: number | null

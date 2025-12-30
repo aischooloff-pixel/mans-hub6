@@ -12,6 +12,7 @@ import { ArticleDetailModal } from '@/components/articles/ArticleDetailModal';
 import { PremiumModal } from '@/components/profile/PremiumModal';
 import { WelcomeModal, useWelcomeModal } from '@/components/welcome/WelcomeModal';
 import { AIAssistantSection } from '@/components/ai/AIAssistantSection';
+import { ReviewsSection } from '@/components/reviews/ReviewsSection';
 import { Skeleton } from '@/components/ui/skeleton';
 import { mockCategories } from '@/data/mockData';
 import { Category, Article as ArticleType } from '@/types';
@@ -327,6 +328,9 @@ export default function Index() {
             </div>
           )}
         </section>
+
+        {/* Reviews Section */}
+        <ReviewsSection className="mb-8" />
 
         {/* Telegram CTA */}
         <TelegramCTA className="mb-8" />
