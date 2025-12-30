@@ -1,5 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Menu, Search, Bell } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { useTelegram } from '@/hooks/use-telegram';
 import { Link } from 'react-router-dom';
 import { Logo } from '@/components/ui/Logo';
 import { Button } from '@/components/ui/button';
@@ -12,11 +14,37 @@ import { useProfile } from '@/hooks/use-profile';
 
 export function Header() {
   const { profile } = useProfile();
+  const { webApp } = useTelegram();
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isSideMenuOpen, setIsSideMenuOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
+  const [hasUnread, setHasUnread] = useState(false);
+
+  // Check for unread notifications
+  const checkUnread = useCallback(async () => {
+    if (!webApp?.initData) return;
+    try {
+      const { data } = await supabase.functions.invoke('tg-notifications', {
+        body: { initData: webApp.initData, limit: 1 },
+      });
+      setHasUnread((data?.unreadCount || 0) > 0);
+    } catch (err) {
+      console.error('Error checking unread:', err);
+    }
+  }, [webApp?.initData]);
+
+  useEffect(() => {
+    checkUnread();
+  }, [checkUnread]);
+
+  // When notifications modal is closed, recheck unread status
+  const handleNotificationsClose = () => {
+    setIsNotificationsOpen(false);
+    // Small delay to allow mark-as-read to complete
+    setTimeout(checkUnread, 500);
+  };
 
   useEffect(() => {
     const handleScroll = () => setIsScrolled(window.scrollY > 20);
@@ -82,7 +110,9 @@ export function Header() {
               onClick={() => setIsNotificationsOpen(true)}
             >
               <Bell className="h-5 w-5" />
-              <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-foreground" />
+              {hasUnread && (
+                <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-foreground" />
+              )}
             </Button>
 
             <Button variant="ghost" size="icon" className="touch-target" onClick={() => setIsProfileOpen(true)}>
@@ -94,7 +124,7 @@ export function Header() {
 
       <SideMenu isOpen={isSideMenuOpen} onClose={() => setIsSideMenuOpen(false)} />
       <SearchModal isOpen={isSearchOpen} onClose={() => setIsSearchOpen(false)} />
-      <NotificationsModal isOpen={isNotificationsOpen} onClose={() => setIsNotificationsOpen(false)} />
+      <NotificationsModal isOpen={isNotificationsOpen} onClose={handleNotificationsClose} />
       <ProfileModal user={currentUser} isOpen={isProfileOpen} onClose={() => setIsProfileOpen(false)} />
     </>
   );

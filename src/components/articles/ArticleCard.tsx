@@ -1,4 +1,4 @@
-import { Heart, MessageCircle, Bookmark, TrendingUp, Share2 } from 'lucide-react';
+import { Heart, MessageCircle, Bookmark, TrendingUp, Share2, Crown } from 'lucide-react';
 import { Article } from '@/types';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -49,9 +49,7 @@ export function ArticleCard({ article, variant = 'default', className, style, on
                   {author.first_name}
                 </span>
                 {author.is_premium && (
-                  <span className="rounded bg-foreground/10 px-1.5 py-0.5 text-[10px] font-medium">
-                    PRO
-                  </span>
+                  <Crown className="h-4 w-4 text-yellow-500" />
                 )}
               </>
             ) : (
@@ -160,9 +158,7 @@ export function ArticleCard({ article, variant = 'default', className, style, on
                 <span className="flex items-center gap-1.5 text-sm font-medium">
                   {author.first_name} {author.last_name}
                   {author.is_premium && (
-                    <span className="rounded bg-foreground/10 px-1.5 py-0.5 text-[10px]">
-                      PRO
-                    </span>
+                    <Crown className="h-4 w-4 text-yellow-500" />
                   )}
                 </span>
                 <span className="text-xs text-muted-foreground">

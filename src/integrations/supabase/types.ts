@@ -45,6 +45,7 @@ export type Database = {
           body: string
           created_at: string | null
           id: string
+          parent_id: string | null
         }
         Insert: {
           article_id: string
@@ -52,6 +53,7 @@ export type Database = {
           body: string
           created_at?: string | null
           id?: string
+          parent_id?: string | null
         }
         Update: {
           article_id?: string
@@ -59,6 +61,7 @@ export type Database = {
           body?: string
           created_at?: string | null
           id?: string
+          parent_id?: string | null
         }
         Relationships: [
           {
@@ -73,6 +76,13 @@ export type Database = {
             columns: ["author_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "article_comments_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "article_comments"
             referencedColumns: ["id"]
           },
         ]

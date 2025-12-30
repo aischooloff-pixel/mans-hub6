@@ -55,7 +55,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { initData, articleId, body } = await req.json();
+    const { initData, articleId, body, parentId } = await req.json();
     
     if (!body || !body.trim()) {
       return new Response(JSON.stringify({ error: 'Комментарий не может быть пустым' }), {
@@ -107,14 +107,20 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Insert comment
+    // Insert comment with optional parent_id for replies
+    const insertData: any = {
+      article_id: articleId,
+      author_id: profile.id,
+      body: body.trim()
+    };
+    
+    if (parentId) {
+      insertData.parent_id = parentId;
+    }
+
     const { data: comment, error: insertError } = await supabase
       .from('article_comments')
-      .insert({
-        article_id: articleId,
-        author_id: profile.id,
-        body: body.trim()
-      })
+      .insert(insertData)
       .select()
       .single();
 
@@ -123,14 +129,17 @@ Deno.serve(async (req) => {
       throw insertError;
     }
 
-    // Update comments count
-    await supabase
-      .from('articles')
-      .update({ comments_count: (article.comments_count || 0) + 1 })
-      .eq('id', articleId);
+    // Update comments count (only for top-level comments)
+    if (!parentId) {
+      await supabase
+        .from('articles')
+        .update({ comments_count: (article.comments_count || 0) + 1 })
+        .eq('id', articleId);
+    }
 
-    // Create notification for article author (if not commenting on own article)
-    if (article.author_id && article.author_id !== profile.id) {
+    // Create notification for article author (if not commenting on own article and not a reply)
+    // Reply notifications are handled by database trigger
+    if (!parentId && article.author_id && article.author_id !== profile.id) {
       const articleTitle = article.title?.substring(0, 50) || 'статью';
       await supabase
         .from('notifications')
@@ -144,7 +153,7 @@ Deno.serve(async (req) => {
       console.log(`Notification created for author ${article.author_id}`);
     }
 
-    console.log(`Comment added to article ${articleId} by user ${tgUser.id}`);
+    console.log(`Comment added to article ${articleId} by user ${tgUser.id}${parentId ? ` (reply to ${parentId})` : ''}`);
 
     return new Response(JSON.stringify({ 
       success: true,

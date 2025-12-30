@@ -14,7 +14,6 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { useProfile } from '@/hooks/use-profile';
 import { SettingsModal } from '@/components/profile/SettingsModal';
-import { SupportModal } from '@/components/profile/SupportModal';
 import { PremiumModal } from '@/components/profile/PremiumModal';
 
 interface SideMenuProps {
@@ -26,7 +25,6 @@ export function SideMenu({ isOpen, onClose }: SideMenuProps) {
   const { profile } = useProfile();
   const navigate = useNavigate();
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [isSupportOpen, setIsSupportOpen] = useState(false);
   const [isPremiumOpen, setIsPremiumOpen] = useState(false);
 
   if (!isOpen) return null;
@@ -60,12 +58,9 @@ export function SideMenu({ isOpen, onClose }: SideMenuProps) {
     setIsSettingsOpen(true);
   };
 
-  const handleHelpClick = () => {
-    // First close the side menu, then open support modal with delay
+  const handleFAQClick = () => {
+    // TODO: Add FAQ link in future
     onClose();
-    setTimeout(() => {
-      setIsSupportOpen(true);
-    }, 100);
   };
 
   const handleModalClose = (setter: (v: boolean) => void) => {
@@ -79,7 +74,7 @@ export function SideMenu({ isOpen, onClose }: SideMenuProps) {
     { icon: User, label: 'Профиль', path: '/profile', onClick: undefined },
     { icon: Crown, label: 'Premium', path: undefined, onClick: handlePremiumClick },
     { icon: Settings, label: 'Настройки', path: undefined, onClick: handleSettingsClick },
-    { icon: HelpCircle, label: 'Помощь', path: undefined, onClick: handleHelpClick },
+    { icon: HelpCircle, label: 'FAQ', path: undefined, onClick: handleFAQClick },
     { icon: MessageSquare, label: 'Telegram канал', path: 'https://t.me/boyshub', external: true, onClick: undefined },
   ];
 
@@ -181,7 +176,6 @@ export function SideMenu({ isOpen, onClose }: SideMenuProps) {
       </div>
 
       <SettingsModal isOpen={isSettingsOpen} onClose={() => handleModalClose(setIsSettingsOpen)} />
-      <SupportModal isOpen={isSupportOpen} onClose={() => handleModalClose(setIsSupportOpen)} />
       <PremiumModal isOpen={isPremiumOpen} onClose={() => handleModalClose(setIsPremiumOpen)} />
     </>
   );

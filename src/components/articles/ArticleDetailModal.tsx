@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, Heart, MessageCircle, Bookmark, Send, Loader2, Crown, Calendar, FileText, Star, Flag } from 'lucide-react';
+import { X, Heart, MessageCircle, Bookmark, Send, Loader2, Crown, Calendar, FileText, Star, Flag, ChevronDown, ChevronUp, Reply } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -22,6 +22,7 @@ interface Comment {
   id: string;
   body: string;
   created_at: string;
+  parent_id?: string | null;
   author?: {
     id: string;
     first_name: string | null;
@@ -55,6 +56,8 @@ export function ArticleDetailModal({
   const [reportReason, setReportReason] = useState('');
   const [isSubmittingReport, setIsSubmittingReport] = useState(false);
   const [authorArticlesCount, setAuthorArticlesCount] = useState(0);
+  const [expandedReplies, setExpandedReplies] = useState<Set<string>>(new Set());
+  const [replyingTo, setReplyingTo] = useState<string | null>(null);
 
   const { toggleLike, toggleFavorite, addComment, getArticleState, reportArticle } = useArticles();
 
@@ -66,6 +69,8 @@ export function ArticleDetailModal({
       setIsFavorited(false);
       setComments([]);
       setAuthorArticlesCount(0);
+      setExpandedReplies(new Set());
+      setReplyingTo(null);
       
       // Load article state
       setIsLoadingState(true);
@@ -92,6 +97,16 @@ export function ArticleDetailModal({
 
   if (!isOpen || !article) return null;
 
+  // Separate top-level comments and replies
+  const topLevelComments = comments.filter(c => !c.parent_id);
+  const repliesMap = comments.reduce((acc, c) => {
+    if (c.parent_id) {
+      if (!acc[c.parent_id]) acc[c.parent_id] = [];
+      acc[c.parent_id].push(c);
+    }
+    return acc;
+  }, {} as Record<string, Comment[]>);
+
   const handleLike = async () => {
     const result = await toggleLike(article.id);
     if (result) {
@@ -111,10 +126,15 @@ export function ArticleDetailModal({
   const handleSubmitComment = async () => {
     if (!comment.trim()) return;
     setIsSubmittingComment(true);
-    const result = await addComment(article.id, comment);
+    const result = await addComment(article.id, comment, replyingTo || undefined);
     if (result?.comment) {
       setComments([...comments, result.comment]);
       setComment('');
+      setReplyingTo(null);
+      // Auto-expand replies if this was a reply
+      if (result.comment.parent_id) {
+        setExpandedReplies(prev => new Set(prev).add(result.comment.parent_id));
+      }
     }
     setIsSubmittingComment(false);
   };
@@ -128,6 +148,28 @@ export function ArticleDetailModal({
       setIsReportOpen(false);
       setReportReason('');
     }
+  };
+
+  const toggleReplies = (commentId: string) => {
+    setExpandedReplies(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(commentId)) {
+        newSet.delete(commentId);
+      } else {
+        newSet.add(commentId);
+      }
+      return newSet;
+    });
+  };
+
+  const handleReplyClick = (commentId: string) => {
+    setReplyingTo(commentId);
+    // Focus on input
+  };
+
+  const cancelReply = () => {
+    setReplyingTo(null);
+    setComment('');
   };
 
   const formatDate = (dateString: string) => {
@@ -145,6 +187,11 @@ export function ArticleDetailModal({
       hour: '2-digit',
       minute: '2-digit',
     });
+  };
+
+  const getReplyingToComment = () => {
+    if (!replyingTo) return null;
+    return comments.find(c => c.id === replyingTo);
   };
 
   return (
@@ -281,33 +328,100 @@ export function ArticleDetailModal({
           </div>
 
           {/* Comments Section */}
-          {comments.length > 0 && (
+          {topLevelComments.length > 0 && (
             <div className="border-t border-border p-4">
-              <h3 className="text-sm font-medium mb-3">Комментарии ({comments.length})</h3>
-              <div className="space-y-3">
-                {comments.map((c) => (
-                  <div key={c.id} className="flex gap-3">
-                    <img
-                      src={c.author?.avatar_url || '/placeholder.svg'}
-                      alt=""
-                      className="h-8 w-8 rounded-full object-cover shrink-0"
-                    />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium">
-                          {c.author?.first_name || 'Пользователь'}
-                        </span>
-                        {c.author?.is_premium && (
-                          <Crown className="h-3 w-3 text-yellow-500" />
-                        )}
-                        <span className="text-xs text-muted-foreground">
-                          {formatCommentDate(c.created_at)}
-                        </span>
+              <h3 className="text-sm font-medium mb-3">Комментарии ({topLevelComments.length})</h3>
+              <div className="space-y-4">
+                {topLevelComments.map((c) => {
+                  const replies = repliesMap[c.id] || [];
+                  const isExpanded = expandedReplies.has(c.id);
+                  
+                  return (
+                    <div key={c.id} className="space-y-2">
+                      {/* Main comment */}
+                      <div className="flex gap-3">
+                        <img
+                          src={c.author?.avatar_url || '/placeholder.svg'}
+                          alt=""
+                          className="h-8 w-8 rounded-full object-cover shrink-0"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-medium">
+                              {c.author?.first_name || 'Пользователь'}
+                            </span>
+                            {c.author?.is_premium && (
+                              <Crown className="h-3 w-3 text-yellow-500" />
+                            )}
+                            <span className="text-xs text-muted-foreground">
+                              {formatCommentDate(c.created_at)}
+                            </span>
+                          </div>
+                          <p className="text-sm text-foreground mt-0.5">{c.body}</p>
+                          
+                          {/* Reply button and replies toggle */}
+                          <div className="flex items-center gap-3 mt-2">
+                            <button
+                              onClick={() => handleReplyClick(c.id)}
+                              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors"
+                            >
+                              <Reply className="h-3 w-3" />
+                              Ответить
+                            </button>
+                            
+                            {replies.length > 0 && (
+                              <button
+                                onClick={() => toggleReplies(c.id)}
+                                className="flex items-center gap-1 text-xs font-medium text-primary hover:text-primary/80 transition-colors"
+                              >
+                                {isExpanded ? (
+                                  <>
+                                    <ChevronUp className="h-3 w-3" />
+                                    Скрыть ответы
+                                  </>
+                                ) : (
+                                  <>
+                                    <ChevronDown className="h-3 w-3" />
+                                    {replies.length} {replies.length === 1 ? 'ответ' : replies.length < 5 ? 'ответа' : 'ответов'}
+                                  </>
+                                )}
+                              </button>
+                            )}
+                          </div>
+                        </div>
                       </div>
-                      <p className="text-sm text-foreground mt-0.5">{c.body}</p>
+                      
+                      {/* Replies - visually distinct */}
+                      {isExpanded && replies.length > 0 && (
+                        <div className="ml-8 pl-4 border-l-2 border-primary/30 space-y-3">
+                          {replies.map((reply) => (
+                            <div key={reply.id} className="flex gap-3 bg-secondary/30 rounded-lg p-2">
+                              <img
+                                src={reply.author?.avatar_url || '/placeholder.svg'}
+                                alt=""
+                                className="h-6 w-6 rounded-full object-cover shrink-0"
+                              />
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs font-medium">
+                                    {reply.author?.first_name || 'Пользователь'}
+                                  </span>
+                                  {reply.author?.is_premium && (
+                                    <Crown className="h-2.5 w-2.5 text-yellow-500" />
+                                  )}
+                                  <span className="text-[10px] text-muted-foreground">
+                                    {formatCommentDate(reply.created_at)}
+                                  </span>
+                                </div>
+                                <p className="text-xs text-foreground mt-0.5">{reply.body}</p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}
@@ -329,7 +443,7 @@ export function ArticleDetailModal({
                 </button>
                 <button className="flex items-center gap-1.5 text-muted-foreground hover:text-primary transition-colors">
                   <MessageCircle className="h-6 w-6" />
-                  <span className="text-sm font-medium">{comments.length}</span>
+                  <span className="text-sm font-medium">{topLevelComments.length}</span>
                 </button>
               </div>
               <div className="flex items-center gap-3">
@@ -353,13 +467,25 @@ export function ArticleDetailModal({
               </div>
             </div>
 
+            {/* Replying indicator */}
+            {replyingTo && (
+              <div className="flex items-center justify-between mb-2 px-2 py-1 bg-secondary/50 rounded-lg">
+                <span className="text-xs text-muted-foreground">
+                  Ответ на комментарий {getReplyingToComment()?.author?.first_name || 'пользователя'}
+                </span>
+                <button onClick={cancelReply} className="text-xs text-destructive hover:underline">
+                  Отмена
+                </button>
+              </div>
+            )}
+
             {/* Comment Input */}
             {article.allow_comments !== false && (
               <div className="flex gap-2">
                 <Input
                   value={comment}
                   onChange={(e) => setComment(e.target.value)}
-                  placeholder="Написать комментарий..."
+                  placeholder={replyingTo ? "Написать ответ..." : "Написать комментарий..."}
                   className="flex-1"
                   onKeyDown={(e) => e.key === 'Enter' && handleSubmitComment()}
                 />

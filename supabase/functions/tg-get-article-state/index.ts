@@ -93,13 +93,14 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Get comments
+    // Get all comments including parent_id for threading
     const { data: comments } = await supabase
       .from('article_comments')
       .select(`
         id,
         body,
         created_at,
+        parent_id,
         author:author_id(id, first_name, last_name, username, avatar_url, is_premium)
       `)
       .eq('article_id', articleId)

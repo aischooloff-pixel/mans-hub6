@@ -13,7 +13,7 @@ interface NotificationsModalProps {
 
 interface Notification {
   id: string;
-  type: 'like' | 'comment' | 'rep' | 'article_approved' | 'article_rejected' | 'favorite';
+  type: 'like' | 'comment' | 'rep' | 'article_approved' | 'article_rejected' | 'favorite' | 'reply';
   message: string;
   is_read: boolean;
   created_at: string;
@@ -94,6 +94,8 @@ export function NotificationsModal({ isOpen, onClose }: NotificationsModalProps)
         return <Heart className="h-4 w-4 text-red-500" />;
       case 'comment':
         return <MessageSquare className="h-4 w-4 text-blue-500" />;
+      case 'reply':
+        return <MessageSquare className="h-4 w-4 text-purple-500" />;
       case 'rep':
         return <TrendingUp className="h-4 w-4 text-green-500" />;
       case 'article_approved':

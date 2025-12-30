@@ -273,8 +273,8 @@ export function useArticles() {
     }
   }, []);
 
-  // Add comment
-  const addComment = useCallback(async (articleId: string, body: string) => {
+  // Add comment (with optional parentId for replies)
+  const addComment = useCallback(async (articleId: string, body: string, parentId?: string) => {
     const initData = getInitData();
     if (!initData) {
       toast.error('Необходимо авторизоваться через Telegram');
@@ -283,7 +283,7 @@ export function useArticles() {
 
     try {
       const { data, error } = await supabase.functions.invoke('tg-add-comment', {
-        body: { initData, articleId, body },
+        body: { initData, articleId, body, parentId },
       });
 
       if (error) {
