@@ -4164,11 +4164,41 @@ function getBotUsername(): string {
   return 'Man_Hub_Bot';
 }
 
-// Handle /ref command - list users who invite others
+// Handle /ref command - show overall referral stats + list top referrers
 async function handleReferrals(chatId: number, userId: number, page: number = 0, messageId?: number) {
   if (!isAdmin(userId)) return;
 
   const from = page * REFERRERS_PER_PAGE;
+
+  // Get TOTAL referred users across all referrers
+  const { count: totalReferredUsers } = await supabase
+    .from('profiles')
+    .select('*', { count: 'exact', head: true })
+    .not('referred_by', 'is', null);
+
+  // Get total referral earnings across all users
+  const { data: allEarnings } = await supabase
+    .from('profiles')
+    .select('referral_earnings')
+    .not('referral_earnings', 'is', null);
+  
+  const totalEarnings = allEarnings?.reduce((sum, p) => sum + (p.referral_earnings || 0), 0) || 0;
+
+  // Get count of users with at least one referral
+  const { data: referrersWithCount } = await supabase
+    .from('profiles')
+    .select('id');
+  
+  let activeReferrersCount = 0;
+  if (referrersWithCount) {
+    for (const r of referrersWithCount) {
+      const { count } = await supabase
+        .from('profiles')
+        .select('*', { count: 'exact', head: true })
+        .eq('referred_by', r.id);
+      if (count && count > 0) activeReferrersCount++;
+    }
+  }
 
   // Get users who have referrals (those who referred at least one person)
   const { data: referrers, error } = await supabase
@@ -4219,8 +4249,13 @@ async function handleReferrals(chatId: number, userId: number, page: number = 0,
 
   const totalPages = Math.ceil((totalCount || 0) / REFERRERS_PER_PAGE);
 
-  let message = `🔗 <b>Управление рефералами</b>\n`;
-  message += `📄 Страница ${page + 1}/${totalPages || 1}\n\n`;
+  // Build message with overall stats first
+  let message = `🔗 <b>Реферальная система</b>\n\n`;
+  message += `📊 <b>Общая статистика:</b>\n`;
+  message += `├ 👥 Всего приглашено: <b>${totalReferredUsers || 0}</b> чел.\n`;
+  message += `├ 🤝 Активных рефереров: <b>${activeReferrersCount}</b>\n`;
+  message += `└ 💰 Всего заработано: <b>${totalEarnings} ₽</b>\n\n`;
+  message += `👑 <b>Топ рефереров</b> (стр. ${page + 1}/${totalPages || 1}):\n\n`;
 
   if (!sortedReferrers || sortedReferrers.length === 0) {
     message += '<i>Нет пользователей с реферальными ссылками</i>';

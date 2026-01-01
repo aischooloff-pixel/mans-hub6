@@ -111,10 +111,16 @@ export function AuthorBadge({ userProfileId, className }: AuthorBadgeProps) {
     <TooltipProvider>
       <Tooltip>
         <TooltipTrigger asChild>
-          <span className={cn('text-sm cursor-help', className)}>{badge.emoji}</span>
+          <span className={cn(
+            'inline-flex items-center gap-1 rounded-md bg-primary/10 border border-primary/20 px-1.5 py-0.5 text-xs cursor-help',
+            className
+          )}>
+            <span>{badge.emoji}</span>
+            <span className="text-foreground/80">{badge.name}</span>
+          </span>
         </TooltipTrigger>
         <TooltipContent>
-          <p>{badge.name}</p>
+          <p>Получено: {new Date(badge.grantedAt).toLocaleDateString('ru-RU')}</p>
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>
