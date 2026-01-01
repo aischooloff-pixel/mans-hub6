@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -69,6 +70,8 @@ serve(async (req) => {
   try {
     const cryptobotToken = Deno.env.get('CRYPTOBOT_API_TOKEN');
     const telegramBotToken = Deno.env.get('TELEGRAM_BOT_TOKEN');
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     
     if (!cryptobotToken) {
       console.error('CRYPTOBOT_API_TOKEN not configured');
@@ -78,29 +81,78 @@ serve(async (req) => {
       });
     }
 
-    const { initData, telegram_id: providedTelegramId, plan, period, amount, currency = 'RUB' } = await req.json();
+    const { initData, plan, period, currency = 'RUB' } = await req.json();
 
-    let telegramId: number | null = null;
-
-    // First try to verify via initData (most secure)
-    if (initData && telegramBotToken) {
-      const verification = await verifyTelegramWebAppData(initData, telegramBotToken);
-      if (verification.valid && verification.user) {
-        telegramId = verification.user.id;
-        console.log(`User verified via initData: ${telegramId}`);
-      }
+    // Validate plan and period
+    if (!plan || !['plus', 'premium'].includes(plan)) {
+      return new Response(JSON.stringify({ error: 'Invalid plan. Must be "plus" or "premium"' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
-    // Fallback to provided telegram_id (for cases when user is in browser but has valid profile)
-    if (!telegramId && providedTelegramId) {
-      telegramId = providedTelegramId;
-      console.log(`Using provided telegram_id: ${telegramId}`);
+    if (!period || !['monthly', 'yearly'].includes(period)) {
+      return new Response(JSON.stringify({ error: 'Invalid period. Must be "monthly" or "yearly"' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
-    if (!telegramId) {
-      console.error('No valid user identification');
-      return new Response(JSON.stringify({ error: 'User identification required' }), {
+    // SECURITY: Only allow invoice creation with verified Telegram initData
+    // This prevents IDOR attacks where someone could create invoices for other users
+    if (!initData) {
+      console.error('Missing initData - cannot verify user identity');
+      return new Response(JSON.stringify({ error: 'Telegram verification required' }), {
         status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    if (!telegramBotToken) {
+      console.error('TELEGRAM_BOT_TOKEN not configured');
+      return new Response(JSON.stringify({ error: 'Server configuration error' }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    const verification = await verifyTelegramWebAppData(initData, telegramBotToken);
+    if (!verification.valid || !verification.user) {
+      console.error('Invalid Telegram initData - verification failed');
+      return new Response(JSON.stringify({ error: 'Invalid Telegram verification' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    const telegramId = verification.user.id;
+    console.log(`User verified via initData: ${telegramId}`);
+
+    // SECURITY: Load price from database instead of trusting client input
+    // This ensures /set_price command in admin bot actually affects invoices
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    
+    const { data: pricing, error: pricingError } = await supabase
+      .from('subscription_pricing')
+      .select('monthly_price, yearly_price')
+      .eq('tier', plan)
+      .single();
+
+    if (pricingError || !pricing) {
+      console.error('Failed to load pricing:', pricingError);
+      return new Response(JSON.stringify({ error: 'Failed to load pricing' }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Get the correct price based on period
+    const amount = period === 'yearly' ? pricing.yearly_price : pricing.monthly_price;
+
+    if (!amount || amount <= 0) {
+      console.error('Invalid price configured:', amount);
+      return new Response(JSON.stringify({ error: 'Invalid price configuration' }), {
+        status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
