@@ -94,9 +94,10 @@ export function UserBadges({ userProfileId, variant = 'full', className }: UserB
 interface AuthorBadgeProps {
   userProfileId: string;
   className?: string;
+  variant?: 'default' | 'compact';
 }
 
-export function AuthorBadge({ userProfileId, className }: AuthorBadgeProps) {
+export function AuthorBadge({ userProfileId, className, variant = 'default' }: AuthorBadgeProps) {
   const { getTopBadge } = useBadges();
   const [badge, setBadge] = useState<Badge | null>(null);
 
@@ -106,6 +107,28 @@ export function AuthorBadge({ userProfileId, className }: AuthorBadgeProps) {
   }, [userProfileId, getTopBadge]);
 
   if (!badge) return null;
+
+  // Compact variant - smaller badge for collapsed article cards
+  if (variant === 'compact') {
+    return (
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span className={cn(
+              'inline-flex items-center gap-0.5 rounded bg-primary/10 border border-primary/20 px-1 py-0 text-[10px] cursor-help',
+              className
+            )}>
+              <span>{badge.emoji}</span>
+              <span className="text-foreground/80">{badge.name}</span>
+            </span>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>Получено: {new Date(badge.grantedAt).toLocaleDateString('ru-RU')}</p>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    );
+  }
 
   return (
     <TooltipProvider>

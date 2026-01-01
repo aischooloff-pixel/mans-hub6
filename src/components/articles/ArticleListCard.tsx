@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Heart, MessageCircle, Bookmark, Clock, Check, XCircle, ChevronDown, ChevronUp, Play, Crown } from 'lucide-react';
 import { Article } from '@/types';
 import { cn } from '@/lib/utils';
+import { AuthorBadge } from '@/components/profile/UserBadges';
 
 interface ArticleListCardProps {
   article: Article;
@@ -72,6 +73,9 @@ export function ArticleListCard({
             <div className="flex items-center gap-3 text-xs text-muted-foreground">
               <span className="flex items-center gap-1">
                 {article.is_anonymous ? 'Аноним' : article.author?.first_name}
+                {!article.is_anonymous && article.author?.id && (
+                  <AuthorBadge userProfileId={article.author.id} variant="compact" />
+                )}
                 {!article.is_anonymous && article.author?.is_premium && (
                   <Crown className="h-3 w-3 text-yellow-500" />
                 )}

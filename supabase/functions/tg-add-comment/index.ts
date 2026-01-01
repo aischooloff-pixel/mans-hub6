@@ -186,7 +186,7 @@ Deno.serve(async (req) => {
                 from_user_id: profile.id,
                 article_id: articleId,
                 type: 'mention',
-                message: `упомянул вас в комментарии к "${articleTitle}"`,
+                message: `Вас упомянули в статье "${articleTitle}"`,
               });
             console.log(`Mention notification created for @${mentionedUser.username}`);
           }
