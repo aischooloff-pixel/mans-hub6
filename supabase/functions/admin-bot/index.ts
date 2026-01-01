@@ -2698,10 +2698,21 @@ async function handleBroadcast(chatId: number, userId: number) {
   if (!isAdmin(userId)) return;
 
   // Start broadcast wizard - save state
-  await supabase.from('admin_settings').upsert({
-    key: `pending_broadcast_${userId}`,
+  const broadcastKey = `pending_broadcast_${userId}`;
+
+  // Reset any previous state (avoid duplicate rows / conflicts)
+  await supabase.from('admin_settings').delete().eq('key', broadcastKey);
+
+  const { error: insertError } = await supabase.from('admin_settings').insert({
+    key: broadcastKey,
     value: JSON.stringify({ step: 'text' }),
   });
+
+  if (insertError) {
+    console.error('Failed to init broadcast state:', insertError);
+    await sendAdminMessage(chatId, '❌ Ошибка: не удалось начать рассылку. Попробуйте ещё раз.');
+    return;
+  }
 
   await sendAdminMessage(chatId, `📢 <b>Рассылка</b>
 
@@ -2739,10 +2750,33 @@ async function handleBroadcastTextInput(chatId: number, userId: number, text: st
   console.log('Saving broadcast text:', text);
 
   // Save text and move to media step
-  await supabase.from('admin_settings').upsert({
-    key: `pending_broadcast_${userId}`,
-    value: JSON.stringify({ step: 'media', text: text.trim() }),
-  });
+  const nextValue = JSON.stringify({ step: 'media', text: text.trim() });
+  const broadcastKey = `pending_broadcast_${userId}`;
+
+  const { data: updatedRows, error: updateError } = await supabase
+    .from('admin_settings')
+    .update({ value: nextValue })
+    .eq('key', broadcastKey)
+    .select('id');
+
+  if (updateError) {
+    console.error('Failed to update broadcast text:', updateError);
+    await sendAdminMessage(chatId, '❌ Ошибка: не удалось сохранить текст рассылки. Попробуйте /broadcast заново.');
+    return true;
+  }
+
+  if (!updatedRows || updatedRows.length === 0) {
+    const { error: insertError } = await supabase.from('admin_settings').insert({
+      key: broadcastKey,
+      value: nextValue,
+    });
+
+    if (insertError) {
+      console.error('Failed to insert broadcast text:', insertError);
+      await sendAdminMessage(chatId, '❌ Ошибка: не удалось сохранить текст рассылки. Попробуйте /broadcast заново.');
+      return true;
+    }
+  }
 
   const keyboard = {
     inline_keyboard: [
@@ -2844,10 +2878,31 @@ async function handleBroadcastMediaInput(chatId: number, userId: number, message
   const newState = { ...state, step: 'preview', media_id: mediaId, media_type: mediaType };
   console.log('Saving new state:', newState);
   
-  await supabase.from('admin_settings').upsert({
-    key: `pending_broadcast_${userId}`,
-    value: JSON.stringify(newState),
-  });
+  const broadcastKey = `pending_broadcast_${userId}`;
+  const { data: updatedRows, error: updateError } = await supabase
+    .from('admin_settings')
+    .update({ value: JSON.stringify(newState) })
+    .eq('key', broadcastKey)
+    .select('id');
+
+  if (updateError) {
+    console.error('Failed to update broadcast media state:', updateError);
+    await sendAdminMessage(chatId, '❌ Ошибка: не удалось сохранить медиа. Попробуйте ещё раз.');
+    return true;
+  }
+
+  if (!updatedRows || updatedRows.length === 0) {
+    const { error: insertError } = await supabase.from('admin_settings').insert({
+      key: broadcastKey,
+      value: JSON.stringify(newState),
+    });
+
+    if (insertError) {
+      console.error('Failed to insert broadcast media state:', insertError);
+      await sendAdminMessage(chatId, '❌ Ошибка: не удалось сохранить медиа. Попробуйте ещё раз.');
+      return true;
+    }
+  }
 
   await showBroadcastPreview(chatId, userId, state.text, mediaId, mediaType);
   return true;
@@ -2901,10 +2956,31 @@ async function handleBroadcastSkipMedia(callbackQuery: any) {
   }
 
   // Update state to preview without media
-  await supabase.from('admin_settings').upsert({
-    key: `pending_broadcast_${from.id}`,
-    value: JSON.stringify({ ...state, step: 'preview' }),
-  });
+  const broadcastKey = `pending_broadcast_${from.id}`;
+  const { data: updatedRows, error: updateError } = await supabase
+    .from('admin_settings')
+    .update({ value: JSON.stringify({ ...state, step: 'preview' }) })
+    .eq('key', broadcastKey)
+    .select('id');
+
+  if (updateError) {
+    console.error('Failed to skip media (update):', updateError);
+    await answerCallbackQuery(id, '❌ Ошибка');
+    return;
+  }
+
+  if (!updatedRows || updatedRows.length === 0) {
+    const { error: insertError } = await supabase.from('admin_settings').insert({
+      key: broadcastKey,
+      value: JSON.stringify({ ...state, step: 'preview' }),
+    });
+
+    if (insertError) {
+      console.error('Failed to skip media (insert):', insertError);
+      await answerCallbackQuery(id, '❌ Ошибка');
+      return;
+    }
+  }
 
   await answerCallbackQuery(id);
   await showBroadcastPreview(message.chat.id, from.id, state.text);
