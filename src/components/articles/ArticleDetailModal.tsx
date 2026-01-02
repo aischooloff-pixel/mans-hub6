@@ -266,18 +266,16 @@ export function ArticleDetailModal({
                 />
                 <div className="flex-1">
                   <div className="flex items-center gap-2">
+                    {(article.author.subscription_tier === 'plus' || article.author.subscription_tier === 'premium') && (
+                      <Crown className="h-4 w-4 text-yellow-500" />
+                    )}
                     <span className="font-medium">
                       {article.author.first_name} {article.author.last_name}
                     </span>
                     {article.author.id && <AuthorBadge userProfileId={article.author.id} />}
                   </div>
                   {article.author.username && (
-                    <p className="text-sm text-muted-foreground flex items-center gap-1">
-                      {(article.author.subscription_tier === 'plus' || article.author.subscription_tier === 'premium') && (
-                        <Crown className="h-3.5 w-3.5 text-yellow-500" />
-                      )}
-                      @{article.author.username}
-                    </p>
+                    <p className="text-sm text-muted-foreground">@{article.author.username}</p>
                   )}
                 </div>
               </button>
