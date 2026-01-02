@@ -28,7 +28,7 @@ function escapeHtml(input: string) {
 // Send message via Admin Bot
 async function sendAdminMessage(chatId: string | number, text: string, options: any = {}) {
   const url = `https://api.telegram.org/bot${ADMIN_BOT_TOKEN}/sendMessage`;
-  
+
   const response = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -39,14 +39,18 @@ async function sendAdminMessage(chatId: string | number, text: string, options: 
       ...options,
     }),
   });
-  
-  return response.json();
+
+  const result = await response.json();
+  if (!result?.ok) {
+    console.error('Telegram sendMessage failed:', result);
+  }
+  return result;
 }
 
 // Edit message
 async function editAdminMessage(chatId: string | number, messageId: number, text: string, options: any = {}) {
   const url = `https://api.telegram.org/bot${ADMIN_BOT_TOKEN}/editMessageText`;
-  
+
   const response = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -58,8 +62,12 @@ async function editAdminMessage(chatId: string | number, messageId: number, text
       ...options,
     }),
   });
-  
-  return response.json();
+
+  const result = await response.json();
+  if (!result?.ok) {
+    console.error('Telegram editMessageText failed:', result);
+  }
+  return result;
 }
 
 // Send message to user via User Bot
@@ -2247,11 +2255,18 @@ async function handleViewArticle(callbackQuery: any, articleShortId: string) {
   }
 
   const authorData = article.author as any;
-  const authorDisplay = authorData?.username ? `@${authorData.username}` : `ID:${authorData?.telegram_id || 'N/A'}`;
+  const authorDisplayRaw = authorData?.username
+    ? `@${authorData.username}`
+    : (authorData?.first_name || `ID:${authorData?.telegram_id || 'N/A'}`);
+  const authorDisplay = escapeHtml(authorDisplayRaw);
   const date = new Date(article.created_at).toLocaleDateString('ru-RU');
   const time = new Date(article.created_at).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
 
-  const articleMessage = `📄 <b>${article.title}</b>
+  const title = escapeHtml(article.title);
+  const previewRaw = article.preview || article.body?.substring(0, 300) || 'Нет превью';
+  const preview = escapeHtml(previewRaw);
+
+  const articleMessage = `📄 <b>${title}</b>
 
 👤 <b>Автор:</b> ${authorDisplay}
 📅 <b>Дата:</b> ${date} ${time}
@@ -2259,7 +2274,7 @@ async function handleViewArticle(callbackQuery: any, articleShortId: string) {
 💬 <b>Комментариев:</b> ${article.comments_count || 0}
 
 📝 <b>Превью:</b>
-${article.preview || article.body?.substring(0, 300) || 'Нет превью'}...`;
+${preview}...`;
 
   const keyboard = {
     inline_keyboard: [
@@ -2312,7 +2327,10 @@ async function handleViewComments(callbackQuery: any, articleShortId: string, pa
 
   const totalPages = Math.ceil((totalCount || 0) / COMMENTS_PER_PAGE);
 
-  let commentsMessage = `💬 <b>Комментарии к статье</b>\n📄 "${article.title.substring(0, 40)}${article.title.length > 40 ? '...' : ''}"\n\n`;
+  const titlePreviewRaw = article.title.substring(0, 40) + (article.title.length > 40 ? '...' : '');
+  const titlePreview = escapeHtml(titlePreviewRaw);
+
+  let commentsMessage = `💬 <b>Комментарии к статье</b>\n📄 "${titlePreview}"\n\n`;
   commentsMessage += `📊 Всего: ${totalCount || 0} | Страница ${page + 1}/${totalPages || 1}\n\n`;
 
   if (!comments || comments.length === 0) {
@@ -2321,11 +2339,17 @@ async function handleViewComments(callbackQuery: any, articleShortId: string, pa
     for (let i = 0; i < comments.length; i++) {
       const c = comments[i];
       const authorData = c.author as any;
-      const authorDisplay = authorData?.username ? `@${authorData.username}` : (authorData?.first_name || `ID:${authorData?.telegram_id || 'N/A'}`);
+      const authorDisplayRaw = authorData?.username
+        ? `@${authorData.username}`
+        : (authorData?.first_name || `ID:${authorData?.telegram_id || 'N/A'}`);
+      const authorDisplay = escapeHtml(authorDisplayRaw);
+
       const date = new Date(c.created_at).toLocaleDateString('ru-RU');
       const time = new Date(c.created_at).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
-      const shortBody = c.body.length > 100 ? c.body.substring(0, 100) + '...' : c.body;
-      
+
+      const shortBodyRaw = c.body.length > 100 ? c.body.substring(0, 100) + '...' : c.body;
+      const shortBody = escapeHtml(shortBodyRaw);
+
       commentsMessage += `${from + i + 1}. 👤 <b>${authorDisplay}</b> | ${date} ${time}\n`;
       commentsMessage += `   "${shortBody}"\n\n`;
     }
@@ -2337,8 +2361,10 @@ async function handleViewComments(callbackQuery: any, articleShortId: string, pa
   // Delete buttons for each comment
   if (comments && comments.length > 0) {
     for (const c of comments) {
-      const shortBody = c.body.length > 20 ? c.body.substring(0, 20) + '...' : c.body;
-      buttons.push([{ text: `🗑 "${shortBody}"`, callback_data: `del_comment:${c.id}:${articleShortId}` }]);
+      const rawBtnBody = c.body.replace(/\s+/g, ' ').trim();
+      const shortBody = rawBtnBody.length > 20 ? rawBtnBody.substring(0, 20) + '...' : rawBtnBody;
+      const buttonLabel = shortBody.replace(/[<>\"]/g, '');
+      buttons.push([{ text: `🗑 ${buttonLabel}`, callback_data: `del_comment:${c.id}:${articleShortId}` }]);
     }
   }
 
