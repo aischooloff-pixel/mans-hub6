@@ -42,6 +42,76 @@ async function verifySignature(body: string, signature: string, token: string): 
   }
 }
 
+// Generate one-time invite link for closed community
+async function generateCommunityInviteLink(): Promise<string | null> {
+  const botToken = Deno.env.get('COMMUNITY_BOT_TOKEN');
+  const chatId = Deno.env.get('COMMUNITY_CHAT_ID');
+  
+  if (!botToken || !chatId) {
+    console.error('Community bot token or chat ID not configured');
+    return null;
+  }
+
+  try {
+    const response = await fetch(
+      `https://api.telegram.org/bot${botToken}/createChatInviteLink`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: chatId,
+          member_limit: 1, // One-time use
+          creates_join_request: true, // Requires admin approval
+        }),
+      }
+    );
+
+    const data = await response.json();
+    console.log('Create invite link response:', JSON.stringify(data));
+
+    if (data.ok && data.result?.invite_link) {
+      return data.result.invite_link;
+    } else {
+      console.error('Failed to create invite link:', data);
+      return null;
+    }
+  } catch (error) {
+    console.error('Error creating invite link:', error);
+    return null;
+  }
+}
+
+// Send message to user via main bot
+async function sendTelegramMessage(telegramId: number, text: string): Promise<void> {
+  const botToken = Deno.env.get('TELEGRAM_BOT_TOKEN');
+  if (!botToken) {
+    console.error('TELEGRAM_BOT_TOKEN not configured');
+    return;
+  }
+
+  try {
+    const response = await fetch(
+      `https://api.telegram.org/bot${botToken}/sendMessage`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: telegramId,
+          text: text,
+          parse_mode: 'HTML',
+        }),
+      }
+    );
+
+    const data = await response.json();
+    if (!data.ok) {
+      console.error('Failed to send Telegram message:', data);
+    }
+  } catch (error) {
+    console.error('Error sending Telegram message:', error);
+  }
+}
+
 serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
@@ -186,6 +256,31 @@ serve(async (req) => {
       message: `🎉 Подписка ${plan === 'plus' ? 'Plus' : 'Premium'} успешно активирована!`,
       is_read: false,
     });
+
+    // For Plus subscribers, generate community invite link and send via Telegram
+    if (plan === 'plus') {
+      const inviteLink = await generateCommunityInviteLink();
+      
+      if (inviteLink) {
+        const message = `🎉 <b>Добро пожаловать в Plus!</b>
+
+Ваша подписка успешно активирована.
+
+🔐 <b>Закрытое сообщество</b>
+Для вступления в закрытое сообщество Plus-подписчиков, перейдите по ссылке и подайте заявку:
+
+${inviteLink}
+
+⚠️ Ссылка одноразовая и действует только для вас.
+
+Спасибо, что вы с нами! 💪`;
+
+        await sendTelegramMessage(telegram_id, message);
+        console.log(`Sent community invite link to user ${telegram_id}`);
+      } else {
+        console.error('Failed to generate invite link for user', telegram_id);
+      }
+    }
 
     console.log(`Successfully activated ${plan} subscription for user ${telegram_id}`);
 
