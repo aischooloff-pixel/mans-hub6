@@ -330,12 +330,12 @@ export function PublicProfileModal({ isOpen, onClose, authorId }: PublicProfileM
 
   const isPremium = profile?.subscription_tier === 'premium' || profile?.subscription_tier === 'plus';
   
-  // Apply privacy settings
-  const displayName = profile?.show_name !== false 
+  // Apply privacy settings - respect user's choices
+  const displayName = profile?.show_name === true
     ? `${profile?.first_name || ''} ${profile?.last_name || ''}`.trim() || 'Пользователь'
     : 'Пользователь';
-  const displayUsername = profile?.show_username !== false ? profile?.username : null;
-  const displayAvatar = profile?.show_avatar !== false ? profile?.avatar_url : null;
+  const displayUsername = profile?.show_username === true ? profile?.username : null;
+  const displayAvatar = profile?.show_avatar === true ? profile?.avatar_url : null;
 
   const formatTelegramLink = (link: string | null) => {
     if (!link) return null;
