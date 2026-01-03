@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { X, Check, Crown, Sparkles, MessageCircle, Users, Infinity, BadgeCheck, Bot, FileText, Headphones, Music, ShoppingBag, GraduationCap, ChevronLeft, ChevronRight, Tag, Loader2, ArrowLeft, HelpCircle, CreditCard, Upload } from 'lucide-react';
+import { X, Check, Crown, Sparkles, MessageCircle, Users, Infinity, BadgeCheck, Bot, FileText, Headphones, Music, ShoppingBag, GraduationCap, ChevronLeft, ChevronRight, Tag, Loader2, ArrowLeft, HelpCircle, CreditCard, Upload, Copy } from 'lucide-react';
 import sbpLogo from '@/assets/sbp-logo.png';
 import cryptobotLogo from '@/assets/cryptobot-logo.jpeg';
 import telegramStarsLogo from '@/assets/telegram-stars-logo.jpeg';
@@ -456,11 +456,20 @@ export function PremiumModal({ isOpen, onClose, telegramId: propTelegramId, curr
                         <span className="font-bold text-foreground">1.</span>
                         Переведите <span className="font-bold text-foreground">{getCurrentPlanPrice()}₽</span> на карту:
                       </li>
-                      <li className="bg-card rounded-lg p-3 text-center">
-                        <code className="text-lg font-mono font-bold text-foreground select-all">
-                          2200 7013 5342 5256
-                        </code>
-                        <p className="text-xs text-muted-foreground mt-1">Т-Банк • Максим П.</p>
+                      <li className="bg-card rounded-lg p-3">
+                        <div 
+                          onClick={() => {
+                            navigator.clipboard.writeText('2200701353425256');
+                            toast.success('Номер карты скопирован');
+                          }}
+                          className="flex items-center justify-center gap-2 cursor-pointer hover:opacity-80 transition-opacity"
+                        >
+                          <code className="text-lg font-mono font-bold text-foreground select-all">
+                            2200 7013 5342 5256
+                          </code>
+                          <Copy className="h-4 w-4 text-muted-foreground" />
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-1 text-center">Т-Банк • Максим П.</p>
                       </li>
                       <li className="flex gap-2">
                         <span className="font-bold text-foreground">2.</span>
