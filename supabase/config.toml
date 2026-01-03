@@ -20,3 +20,6 @@ verify_jwt = false
 
 [functions.stars-create-invoice]
 verify_jwt = false
+
+[functions.manual-payment]
+verify_jwt = false

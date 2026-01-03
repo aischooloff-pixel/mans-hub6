@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { X, Check, Crown, Sparkles, MessageCircle, Users, Infinity, BadgeCheck, Bot, FileText, Headphones, Music, ShoppingBag, GraduationCap, ChevronLeft, ChevronRight, Tag, Loader2, ArrowLeft, HelpCircle } from 'lucide-react';
+import { X, Check, Crown, Sparkles, MessageCircle, Users, Infinity, BadgeCheck, Bot, FileText, Headphones, Music, ShoppingBag, GraduationCap, ChevronLeft, ChevronRight, Tag, Loader2, ArrowLeft, HelpCircle, CreditCard, Upload } from 'lucide-react';
 import sbpLogo from '@/assets/sbp-logo.png';
 import cryptobotLogo from '@/assets/cryptobot-logo.jpeg';
 import telegramStarsLogo from '@/assets/telegram-stars-logo.jpeg';
@@ -45,6 +45,10 @@ export function PremiumModal({ isOpen, onClose, telegramId: propTelegramId, curr
   const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
   const [showSupportModal, setShowSupportModal] = useState(false);
   const [paymentLoading, setPaymentLoading] = useState<string | null>(null);
+  const [showManualPayment, setShowManualPayment] = useState(false);
+  const [receiptFile, setReceiptFile] = useState<File | null>(null);
+  const [manualPaymentLoading, setManualPaymentLoading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const { getInitData, webApp } = useTelegram();
   const [pricing, setPricing] = useState<PricingData>({
     plus: { monthly: 299, yearly: 2510, monthlyOriginal: 598, yearlyOriginal: 5020 },
@@ -60,6 +64,8 @@ export function PremiumModal({ isOpen, onClose, telegramId: propTelegramId, curr
       setPromoDiscount(0);
       setPromoApplied(false);
       setSelectedPlan(null);
+      setShowManualPayment(false);
+      setReceiptFile(null);
     }
   }, [isOpen]);
 
@@ -291,7 +297,60 @@ export function PremiumModal({ isOpen, onClose, telegramId: propTelegramId, curr
     }
   };
 
+  const handleManualPayment = async () => {
+    if (!receiptFile) {
+      toast.error('Загрузите чек об оплате');
+      return;
+    }
+
+    if (!propTelegramId) {
+      toast.error('Не удалось определить пользователя');
+      return;
+    }
+
+    setManualPaymentLoading(true);
+    try {
+      const formData = new FormData();
+      formData.append('telegram_id', propTelegramId.toString());
+      formData.append('plan', selectedPlan || 'plus');
+      formData.append('billing_period', billingPeriod);
+      formData.append('amount', getCurrentPlanPrice().toString());
+      formData.append('receipt', receiptFile);
+
+      const { data, error } = await supabase.functions.invoke('manual-payment', {
+        body: formData,
+      });
+
+      if (error) {
+        console.error('Manual payment error:', error);
+        toast.error('Ошибка отправки заявки');
+        return;
+      }
+
+      if (data?.success) {
+        toast.success('Заявка отправлена! Ожидайте подтверждения');
+        setShowManualPayment(false);
+        setReceiptFile(null);
+        onClose();
+      } else {
+        toast.error(data?.error || 'Ошибка отправки заявки');
+      }
+    } catch (err) {
+      console.error('Manual payment error:', err);
+      toast.error('Произошла ошибка');
+    } finally {
+      setManualPaymentLoading(false);
+    }
+  };
+
   const paymentMethods = [
+    {
+      id: 'manual',
+      name: 'Перевод на карту',
+      description: 'Ручная проверка',
+      icon: CreditCard,
+      enabled: true,
+    },
     {
       id: 'sbp',
       name: 'СБП',
@@ -372,68 +431,173 @@ export function PremiumModal({ isOpen, onClose, telegramId: propTelegramId, curr
         <div className="p-6">
           {selectedPlan ? (
             <>
-              {/* Payment Methods Screen */}
-              <div className="mb-6">
-                <button
-                  onClick={handleBackToPlans}
-                  className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors mb-4"
-                >
-                  <ArrowLeft className="h-4 w-4" />
-                  Назад к тарифам
-                </button>
-                
-                <div className="text-center mb-6">
-                  <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary/20">
-                    <Crown className="h-8 w-8 text-primary" />
+              {showManualPayment ? (
+                /* Manual Payment Screen */
+                <div className="mb-6">
+                  <button
+                    onClick={() => setShowManualPayment(false)}
+                    className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors mb-4"
+                  >
+                    <ArrowLeft className="h-4 w-4" />
+                    Назад к способам оплаты
+                  </button>
+                  
+                  <div className="text-center mb-6">
+                    <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary/20">
+                      <CreditCard className="h-8 w-8 text-primary" />
+                    </div>
+                    <h2 className="mb-2 font-heading text-xl font-bold">Оплата переводом</h2>
                   </div>
-                  <h2 className="mb-2 font-heading text-2xl font-bold">Оплата Plus</h2>
-                  <p className="text-muted-foreground">
-                    <span className="text-2xl font-bold text-foreground">{getCurrentPlanPrice()}₽</span>
-                    <span className="text-sm">/{billingPeriod === 'monthly' ? 'мес' : 'год'}</span>
-                  </p>
-                </div>
 
-                <h3 className="text-lg font-semibold mb-4 text-center">Выберите способ оплаты</h3>
-                
-                <div className="space-y-3">
-                  {paymentMethods.map((method) => (
+                  <div className="bg-secondary/50 rounded-xl p-4 mb-6">
+                    <h3 className="font-semibold mb-3">Инструкция:</h3>
+                    <ol className="space-y-2 text-sm text-muted-foreground">
+                      <li className="flex gap-2">
+                        <span className="font-bold text-foreground">1.</span>
+                        Переведите <span className="font-bold text-foreground">{getCurrentPlanPrice()}₽</span> на карту:
+                      </li>
+                      <li className="bg-card rounded-lg p-3 text-center">
+                        <code className="text-lg font-mono font-bold text-foreground select-all">
+                          2200 7009 4785 0965
+                        </code>
+                        <p className="text-xs text-muted-foreground mt-1">Сбербанк</p>
+                      </li>
+                      <li className="flex gap-2">
+                        <span className="font-bold text-foreground">2.</span>
+                        Сохраните чек/скриншот перевода
+                      </li>
+                      <li className="flex gap-2">
+                        <span className="font-bold text-foreground">3.</span>
+                        Загрузите чек ниже и нажмите "Я оплатил"
+                      </li>
+                    </ol>
+                  </div>
+
+                  <div className="space-y-4">
+                    <input
+                      type="file"
+                      ref={fileInputRef}
+                      onChange={(e) => setReceiptFile(e.target.files?.[0] || null)}
+                      accept="image/*"
+                      className="hidden"
+                    />
+                    
                     <button
-                      key={method.id}
-                      onClick={() => handlePayment(method.id)}
-                      disabled={paymentLoading !== null || !method.enabled}
+                      onClick={() => fileInputRef.current?.click()}
                       className={cn(
-                        "flex items-center gap-4 p-4 rounded-xl border w-full text-left transition-all",
-                        method.enabled 
-                          ? "border-border bg-card/50 hover:border-primary hover:bg-primary/5 cursor-pointer" 
-                          : "border-border/50 bg-card/30 opacity-60 cursor-not-allowed"
+                        "flex items-center justify-center gap-3 p-4 rounded-xl border-2 border-dashed w-full transition-all",
+                        receiptFile 
+                          ? "border-primary bg-primary/5" 
+                          : "border-border hover:border-primary/50"
                       )}
                     >
-                      <div className="flex-shrink-0">
-                        <img src={method.logo} alt={method.name} className="h-10 w-10 rounded-lg object-cover" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium">{method.name}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {method.enabled ? method.description : 'Скоро'}
-                        </p>
-                      </div>
-                      {paymentLoading === method.id && (
-                        <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                      {receiptFile ? (
+                        <>
+                          <Check className="h-5 w-5 text-primary" />
+                          <span className="text-sm font-medium">{receiptFile.name}</span>
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="h-5 w-5 text-muted-foreground" />
+                          <span className="text-sm text-muted-foreground">Загрузить чек</span>
+                        </>
                       )}
                     </button>
-                  ))}
-                </div>
 
-                <div className="mt-8 pt-4 border-t border-border">
-                  <button
-                    onClick={() => setShowSupportModal(true)}
-                    className="flex items-center justify-center gap-2 w-full text-sm text-muted-foreground hover:text-primary transition-colors"
-                  >
-                    <HelpCircle className="h-4 w-4" />
-                    По всем вопросам к Технической Поддержке
-                  </button>
+                    <Button
+                      onClick={handleManualPayment}
+                      disabled={!receiptFile || manualPaymentLoading}
+                      className="w-full"
+                      size="lg"
+                    >
+                      {manualPaymentLoading ? (
+                        <Loader2 className="h-5 w-5 animate-spin" />
+                      ) : (
+                        'Я оплатил'
+                      )}
+                    </Button>
+                  </div>
+
+                  <p className="text-xs text-muted-foreground text-center mt-4">
+                    После проверки чека подписка будет активирована автоматически
+                  </p>
                 </div>
-              </div>
+              ) : (
+                /* Payment Methods Screen */
+                <div className="mb-6">
+                  <button
+                    onClick={handleBackToPlans}
+                    className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors mb-4"
+                  >
+                    <ArrowLeft className="h-4 w-4" />
+                    Назад к тарифам
+                  </button>
+                  
+                  <div className="text-center mb-6">
+                    <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary/20">
+                      <Crown className="h-8 w-8 text-primary" />
+                    </div>
+                    <h2 className="mb-2 font-heading text-2xl font-bold">Оплата Plus</h2>
+                    <p className="text-muted-foreground">
+                      <span className="text-2xl font-bold text-foreground">{getCurrentPlanPrice()}₽</span>
+                      <span className="text-sm">/{billingPeriod === 'monthly' ? 'мес' : 'год'}</span>
+                    </p>
+                  </div>
+
+                  <h3 className="text-lg font-semibold mb-4 text-center">Выберите способ оплаты</h3>
+                  
+                  <div className="space-y-3">
+                    {paymentMethods.map((method) => (
+                      <button
+                        key={method.id}
+                        onClick={() => {
+                          if (method.id === 'manual') {
+                            setShowManualPayment(true);
+                          } else {
+                            handlePayment(method.id);
+                          }
+                        }}
+                        disabled={paymentLoading !== null || !method.enabled}
+                        className={cn(
+                          "flex items-center gap-4 p-4 rounded-xl border w-full text-left transition-all",
+                          method.enabled 
+                            ? "border-border bg-card/50 hover:border-primary hover:bg-primary/5 cursor-pointer" 
+                            : "border-border/50 bg-card/30 opacity-60 cursor-not-allowed"
+                        )}
+                      >
+                        <div className="flex-shrink-0">
+                          {'logo' in method ? (
+                            <img src={method.logo} alt={method.name} className="h-10 w-10 rounded-lg object-cover" />
+                          ) : (
+                            <div className="h-10 w-10 rounded-lg bg-primary/20 flex items-center justify-center">
+                              <method.icon className="h-5 w-5 text-primary" />
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium">{method.name}</p>
+                          <p className="text-sm text-muted-foreground">
+                            {method.enabled ? method.description : 'Скоро'}
+                          </p>
+                        </div>
+                        {paymentLoading === method.id && (
+                          <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                        )}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="mt-8 pt-4 border-t border-border">
+                    <button
+                      onClick={() => setShowSupportModal(true)}
+                      className="flex items-center justify-center gap-2 w-full text-sm text-muted-foreground hover:text-primary transition-colors"
+                    >
+                      <HelpCircle className="h-4 w-4" />
+                      По всем вопросам к Технической Поддержке
+                    </button>
+                  </div>
+                </div>
+              )}
 
               <SupportModal
                 isOpen={showSupportModal}

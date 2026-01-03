@@ -4756,7 +4756,195 @@ async function handleCallbackQuery(callbackQuery: any) {
     await handleBadgeGrant(callbackQuery, param, param2);
   } else if (action === 'badge_revoke') {
     await handleBadgeRevoke(callbackQuery, param, param2);
+  } else if (action === 'manual_pay_approve') {
+    await handleManualPaymentApprove(callbackQuery, param);
+  } else if (action === 'manual_pay_reject') {
+    await handleManualPaymentRejectStart(callbackQuery, param);
   }
+}
+
+// ==================== MANUAL PAYMENT HANDLERS ====================
+
+// Handle manual payment approval
+async function handleManualPaymentApprove(callbackQuery: any, paymentId: string) {
+  const { id, message, from } = callbackQuery;
+
+  // Get payment request
+  const { data: payment, error: paymentError } = await supabase
+    .from('manual_payment_requests')
+    .select('*, profile:user_profile_id(telegram_id, username, first_name)')
+    .eq('id', paymentId)
+    .maybeSingle();
+
+  if (paymentError || !payment) {
+    await answerCallbackQuery(id, '❌ Платёж не найден');
+    return;
+  }
+
+  if (payment.status !== 'pending') {
+    await answerCallbackQuery(id, '⚠️ Платёж уже обработан');
+    return;
+  }
+
+  const profile = payment.profile as any;
+  const periodDays = payment.billing_period === 'yearly' ? 365 : 30;
+  const expiresAt = new Date();
+  expiresAt.setDate(expiresAt.getDate() + periodDays);
+
+  // Update user subscription
+  const { error: updateError } = await supabase
+    .from('profiles')
+    .update({
+      subscription_tier: payment.plan,
+      is_premium: true,
+      premium_expires_at: expiresAt.toISOString(),
+    })
+    .eq('id', payment.user_profile_id);
+
+  if (updateError) {
+    console.error('Error updating subscription:', updateError);
+    await answerCallbackQuery(id, '❌ Ошибка при выдаче подписки');
+    return;
+  }
+
+  // Update payment status
+  await supabase
+    .from('manual_payment_requests')
+    .update({
+      status: 'approved',
+      reviewed_by_telegram_id: from.id,
+      reviewed_at: new Date().toISOString(),
+    })
+    .eq('id', paymentId);
+
+  // Remove buttons from admin message
+  await editMessageReplyMarkup(message.chat.id, message.message_id);
+
+  // Notify admin
+  const tierName = payment.plan === 'plus' ? 'Plus' : 'Premium';
+  const periodText = payment.billing_period === 'monthly' ? 'месяц' : 'год';
+  const userName = profile?.username ? `@${profile.username}` : profile?.first_name || 'Пользователь';
+
+  await sendAdminMessage(message.chat.id, `✅ Оплата подтверждена!
+
+👤 ${userName}
+📦 ${tierName} на ${periodText}
+📅 Подписка до: ${expiresAt.toLocaleDateString('ru-RU')}`);
+
+  // Notify user via bot
+  if (profile?.telegram_id) {
+    await sendUserMessage(profile.telegram_id, `🎉 <b>Оплата подтверждена!</b>
+
+Ваша подписка <b>${tierName}</b> активирована!
+📅 Действует до: ${expiresAt.toLocaleDateString('ru-RU')}
+
+Спасибо за покупку! 💜`);
+  }
+
+  await answerCallbackQuery(id, '✅ Подписка выдана!');
+}
+
+// Handle manual payment rejection start
+async function handleManualPaymentRejectStart(callbackQuery: any, paymentId: string) {
+  const { id, message, from } = callbackQuery;
+
+  // Get payment request
+  const { data: payment } = await supabase
+    .from('manual_payment_requests')
+    .select('id, status')
+    .eq('id', paymentId)
+    .maybeSingle();
+
+  if (!payment) {
+    await answerCallbackQuery(id, '❌ Платёж не найден');
+    return;
+  }
+
+  if (payment.status !== 'pending') {
+    await answerCallbackQuery(id, '⚠️ Платёж уже обработан');
+    return;
+  }
+
+  // Store pending rejection
+  await supabase.from('admin_settings').upsert({
+    key: `pending_manual_reject_${from.id}`,
+    value: paymentId,
+  });
+
+  await answerCallbackQuery(id);
+  await sendAdminMessage(message.chat.id, `❌ <b>Отклонение платежа</b>
+
+Напишите причину отклонения:
+
+<i>Например: "Чек не соответствует сумме" или "Неверные реквизиты"</i>
+
+Для отмены: /cancel`);
+}
+
+// Handle manual payment rejection reason
+async function handleManualPaymentRejectionReason(chatId: number, userId: number, text: string): Promise<boolean> {
+  const { data: pending } = await supabase
+    .from('admin_settings')
+    .select('value')
+    .eq('key', `pending_manual_reject_${userId}`)
+    .maybeSingle();
+
+  if (!pending?.value) return false;
+
+  const paymentId = pending.value;
+
+  // Get payment
+  const { data: payment } = await supabase
+    .from('manual_payment_requests')
+    .select('*, profile:user_profile_id(telegram_id, username, first_name)')
+    .eq('id', paymentId)
+    .maybeSingle();
+
+  if (!payment) {
+    await supabase.from('admin_settings').delete().eq('key', `pending_manual_reject_${userId}`);
+    await sendAdminMessage(chatId, '❌ Платёж не найден');
+    return true;
+  }
+
+  // Update payment status
+  await supabase
+    .from('manual_payment_requests')
+    .update({
+      status: 'rejected',
+      rejection_reason: text.trim(),
+      reviewed_by_telegram_id: userId,
+      reviewed_at: new Date().toISOString(),
+    })
+    .eq('id', paymentId);
+
+  // Clear pending state
+  await supabase.from('admin_settings').delete().eq('key', `pending_manual_reject_${userId}`);
+
+  // Remove buttons from admin message
+  if (payment.admin_message_id) {
+    await editMessageReplyMarkup(chatId, payment.admin_message_id);
+  }
+
+  const profile = payment.profile as any;
+  const userName = profile?.username ? `@${profile.username}` : profile?.first_name || 'Пользователь';
+
+  await sendAdminMessage(chatId, `❌ Платёж отклонён
+
+👤 ${userName}
+📝 Причина: ${text.trim()}`);
+
+  // Notify user
+  if (profile?.telegram_id) {
+    await sendUserMessage(profile.telegram_id, `❌ <b>Оплата отклонена</b>
+
+К сожалению, ваш платёж не был подтверждён.
+
+📝 <b>Причина:</b> ${text.trim()}
+
+Если вы считаете это ошибкой, обратитесь в поддержку.`);
+  }
+
+  return true;
 }
 
 // Handle /zb - article reports
@@ -5781,6 +5969,12 @@ Deno.serve(async (req) => {
         // Check hi pending input mode
         const hiHandled = await handleHiPendingInput(chat.id, from.id, text);
         if (hiHandled) {
+          return new Response('OK', { headers: corsHeaders });
+        }
+
+        // Check if this is a manual payment rejection reason
+        const manualPayRejectionHandled = await handleManualPaymentRejectionReason(chat.id, from.id, text);
+        if (manualPayRejectionHandled) {
           return new Response('OK', { headers: corsHeaders });
         }
 

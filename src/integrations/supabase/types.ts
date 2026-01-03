@@ -352,6 +352,69 @@ export type Database = {
           },
         ]
       }
+      manual_payment_requests: {
+        Row: {
+          admin_message_id: number | null
+          amount: number
+          billing_period: string
+          created_at: string
+          id: string
+          plan: string
+          receipt_url: string
+          rejection_reason: string | null
+          reviewed_at: string | null
+          reviewed_by_telegram_id: number | null
+          status: string
+          updated_at: string
+          user_profile_id: string
+        }
+        Insert: {
+          admin_message_id?: number | null
+          amount: number
+          billing_period: string
+          created_at?: string
+          id?: string
+          plan: string
+          receipt_url: string
+          rejection_reason?: string | null
+          reviewed_at?: string | null
+          reviewed_by_telegram_id?: number | null
+          status?: string
+          updated_at?: string
+          user_profile_id: string
+        }
+        Update: {
+          admin_message_id?: number | null
+          amount?: number
+          billing_period?: string
+          created_at?: string
+          id?: string
+          plan?: string
+          receipt_url?: string
+          rejection_reason?: string | null
+          reviewed_at?: string | null
+          reviewed_by_telegram_id?: number | null
+          status?: string
+          updated_at?: string
+          user_profile_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "manual_payment_requests_user_profile_id_fkey"
+            columns: ["user_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "manual_payment_requests_user_profile_id_fkey"
+            columns: ["user_profile_id"]
+            isOneToOne: false
+            referencedRelation: "public_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       moderation_logs: {
         Row: {
           action: string
