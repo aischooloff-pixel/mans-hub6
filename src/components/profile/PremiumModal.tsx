@@ -361,21 +361,30 @@ export function PremiumModal({ isOpen, onClose, telegramId: propTelegramId, curr
       formData.append('amount', getCurrentPlanPrice().toString());
       formData.append('receipt', receiptFile);
 
+      const apiKey = (import.meta.env.VITE_SUPABASE_ANON_KEY || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY) as string;
+
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/manual-payment`,
         {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+            apikey: apiKey,
+            Authorization: `Bearer ${apiKey}`,
           },
           body: formData,
         }
       );
 
-      const data = await response.json();
+      let data: any = null;
+      try {
+        data = await response.json();
+      } catch {
+        const text = await response.text();
+        data = { error: text || 'Invalid response' };
+      }
 
       if (!response.ok) {
-        console.error('Manual payment error:', data);
+        console.error('Manual payment error:', { status: response.status, data });
         toast.error(data?.error || 'Ошибка отправки заявки');
         return;
       }
