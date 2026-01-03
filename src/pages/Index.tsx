@@ -282,7 +282,7 @@ export default function Index() {
         <PlaylistsSection className="mb-8" />
 
         {/* AI Assistant - always visible, access controlled by subscription */}
-        <AIAssistantSection className="mb-8" subscriptionTier={subscriptionTier} />
+        <AIAssistantSection className="mb-8" subscriptionTier={subscriptionTier} telegramId={profile?.telegram_id} />
 
         {/* Premium Banner */}
         {!isPremium && (

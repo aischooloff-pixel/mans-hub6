@@ -5,10 +5,11 @@ import { cn } from '@/lib/utils';
 interface UpgradeToPlusModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onOpenPremium?: () => void;
   feature?: 'ai' | 'articles' | 'bio';
 }
 
-export function UpgradeToPlusModal({ isOpen, onClose, feature = 'ai' }: UpgradeToPlusModalProps) {
+export function UpgradeToPlusModal({ isOpen, onClose, onOpenPremium, feature = 'ai' }: UpgradeToPlusModalProps) {
   if (!isOpen) return null;
 
   const getTitle = () => {
@@ -92,7 +93,10 @@ export function UpgradeToPlusModal({ isOpen, onClose, feature = 'ai' }: UpgradeT
               <span className="text-2xl font-bold">299₽</span>
               <span className="text-muted-foreground">/мес</span>
             </div>
-            <Button className="w-full" onClick={onClose}>
+            <Button className="w-full" onClick={() => {
+              onClose();
+              onOpenPremium?.();
+            }}>
               Перейти на Plus
             </Button>
             <Button variant="ghost" className="w-full" onClick={onClose}>

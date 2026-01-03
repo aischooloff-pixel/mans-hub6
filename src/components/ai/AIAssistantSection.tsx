@@ -3,17 +3,20 @@ import { Bot, MessageCircle, Sparkles, Lock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { AIAssistantChat } from './AIAssistantChat';
 import { UpgradeToPlusModal } from '@/components/profile/UpgradeToPlusModal';
+import { PremiumModal } from '@/components/profile/PremiumModal';
 import { cn } from '@/lib/utils';
 import { SubscriptionTier } from '@/hooks/use-profile';
 
 interface AIAssistantSectionProps {
   className?: string;
   subscriptionTier?: SubscriptionTier;
+  telegramId?: number | null;
 }
 
-export function AIAssistantSection({ className, subscriptionTier = 'free' }: AIAssistantSectionProps) {
+export function AIAssistantSection({ className, subscriptionTier = 'free', telegramId }: AIAssistantSectionProps) {
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [isUpgradeOpen, setIsUpgradeOpen] = useState(false);
+  const [isPremiumOpen, setIsPremiumOpen] = useState(false);
 
   const hasAccess = subscriptionTier === 'plus' || subscriptionTier === 'premium';
 
@@ -78,7 +81,15 @@ export function AIAssistantSection({ className, subscriptionTier = 'free' }: AIA
       <UpgradeToPlusModal
         isOpen={isUpgradeOpen}
         onClose={() => setIsUpgradeOpen(false)}
+        onOpenPremium={() => setIsPremiumOpen(true)}
         feature="ai"
+      />
+
+      <PremiumModal
+        isOpen={isPremiumOpen}
+        onClose={() => setIsPremiumOpen(false)}
+        telegramId={telegramId}
+        currentTier={subscriptionTier}
       />
     </>
   );

@@ -223,6 +223,7 @@ async function handleStart(chatId: number, userId: number) {
 👥 /users — Список пользователей
 🔗 /ref — Управление рефералами
 👑 /premium — Управление подписками
+💳 /payments — Платежи на проверке
 💰 /prices — Управление ценами тарифов
 🎟 /pr — Управление промокодами
 📝 /pending — Статьи на модерации
@@ -258,6 +259,56 @@ async function handleStart(chatId: number, userId: number) {
 <i>Уведомления о новых статьях и вопросах приходят автоматически.</i>`;
 
   await sendAdminMessage(chatId, welcomeMessage);
+}
+
+// Handle /payments command - list pending manual payments
+async function handlePayments(chatId: number, userId: number) {
+  if (!isAdmin(userId)) return;
+
+  const { data: payments, error } = await supabase
+    .from('manual_payment_requests')
+    .select(`
+      *,
+      user_profile:profiles!manual_payment_requests_user_profile_id_fkey(
+        username,
+        first_name,
+        telegram_id
+      )
+    `)
+    .eq('status', 'pending')
+    .order('created_at', { ascending: false })
+    .limit(20);
+
+  if (error) {
+    console.error('Error fetching payments:', error);
+    await sendAdminMessage(chatId, '❌ Ошибка загрузки платежей');
+    return;
+  }
+
+  if (!payments || payments.length === 0) {
+    await sendAdminMessage(chatId, '💳 <b>Платежи на проверке</b>\n\nНет платежей на проверке');
+    return;
+  }
+
+  let message = `💳 <b>Платежи на проверке (${payments.length})</b>\n\n`;
+
+  for (const payment of payments) {
+    const profile = payment.user_profile;
+    const userName = profile?.username ? `@${profile.username}` : profile?.first_name || 'Пользователь';
+    const periodText = payment.billing_period === 'monthly' ? 'месяц' : 'год';
+    const planText = payment.plan === 'plus' ? 'Plus' : 'Premium';
+    const date = new Date(payment.created_at).toLocaleString('ru-RU', { timeZone: 'Europe/Moscow' });
+
+    message += `👤 ${userName}\n`;
+    message += `📦 ${planText} / ${periodText}\n`;
+    message += `💰 ${payment.amount}₽\n`;
+    message += `🕐 ${date}\n`;
+    message += `📎 <a href="${payment.receipt_url}">Чек</a>\n\n`;
+  }
+
+  message += '\n<i>Уведомления о новых платежах приходят автоматически с кнопками для подтверждения/отклонения</i>';
+
+  await sendAdminMessage(chatId, message, { disable_web_page_preview: true });
 }
 
 // Handle /stats command
@@ -5951,6 +6002,8 @@ Deno.serve(async (req) => {
         await handleHi(chat.id, from.id);
       } else if (text === '/ref') {
         await handleReferrals(chat.id, from.id);
+      } else if (text === '/payments') {
+        await handlePayments(chat.id, from.id);
       } else if (text === '/help') {
         await handleStart(chat.id, from.id);
       } else {
